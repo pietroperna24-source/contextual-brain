@@ -1,50 +1,66 @@
 import streamlit as st
 import cervello
+import json
 import os
 
-# Configurazione Pagina Mobile
-st.set_page_config(
-    page_title="Cervello Mobile",
-    page_icon="🧠",
-    layout="centered"
-)
+# --- GESTIONE UTENTI ---
+UTENTI_FILE = "utenti.json"
 
-# CSS personalizzato per rendere i bottoni grandi (facili da cliccare col pollice)
-st.markdown("""
-    <style>
-    div.stButton > button:first-child {
-        height: 3em;
-        width: 100%;
-        border-radius: 10px;
-        font-size: 20px;
-        font-weight: bold;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+def carica_utenti():
+    if not os.path.exists(UTENTI_FILE): return {}
+    with open(UTENTI_FILE, "r") as f: return json.load(f)
 
-st.title("🧠 Assistente IA")
-st.write("Scrivi e memorizza i tuoi pensieri.")
+def salva_utente(user, pwd):
+    utenti = carica_utenti()
+    utenti[user] = pwd
+    with open(UTENTI_FILE, "w") as f: json.dump(utenti, f)
 
-# Input di testo (sostituisce il microfono che non va sul web)
-input_utente = st.text_input("Cosa vuoi dirmi?", placeholder="Esempio: Ricorda la password della palestra è 5566")
+# --- INTERFACCIA ---
+st.set_page_config(page_title="Cervello Privato", layout="centered")
 
-if st.button("🚀 ELABORA"):
-    if input_utente:
-        # Salviamo l'input per il modulo cervello
-        with open("input_recente.txt", "w", encoding="utf-8") as f:
-            f.write(input_utente)
-        
-        with st.spinner("Sto pensando..."):
-            # Chiamiamo la logica di Groq
-            risposta = cervello.elabora_concetto()
-            st.success("Operazione completata!")
-            # Se cervello.py restituisce la risposta, la mostriamo qui
-            if risposta:
-                st.chat_message("assistant").write(risposta)
-    else:
-        st.warning("Ehi, scrivi qualcosa prima!")
+if 'autenticato' not in st.session_state:
+    st.session_state.autenticato = False
+    st.session_state.utente_attuale = None
 
-# Visualizzazione della memoria attuale
-if st.expander("📂 Guarda la tua memoria"):
-    memoria = cervello.carica_memoria()
-    st.json(memoria)
+if not st.session_state.autenticato:
+    tab1, tab2 = st.tabs(["Login", "Registrazione"])
+    
+    with tab1:
+        u = st.text_input("Username")
+        p = st.text_input("Password", type="password")
+        if st.button("Accedi"):
+            db = carica_utenti()
+            if u in db and db[u] == p:
+                st.session_state.autenticato = True
+                st.session_state.utente_attuale = u
+                st.rerun()
+            else:
+                st.error("Credenziali errate")
+
+    with tab2:
+        nuovo_u = st.text_input("Scegli Username")
+        nuovo_p = st.text_input("Scegli Password", type="password")
+        if st.button("Registrati"):
+            db = carica_utenti()
+            if nuovo_u in db:
+                st.warning("Utente già esistente")
+            else:
+                salva_utente(nuovo_u, nuovo_p)
+                st.success("Registrato! Ora fai il login")
+
+else:
+    # --- APP DOPO IL LOGIN ---
+    st.sidebar.write(f"👤 Utente: **{st.session_state.utente_attuale}**")
+    if st.sidebar.button("Logout"):
+        st.session_state.autenticato = False
+        st.rerun()
+
+    st.title("🧠 Il tuo Cervello Privato")
+    
+    input_utente = st.text_input("Cosa vuoi memorizzare?")
+    
+    if st.button("🚀 ELABORA"):
+        if input_utente:
+            # Passiamo l'utente al cervello per salvare in file separati
+            risposta = cervello.elabora_concetto(st.session_state.utente_attuale, input_utente)
+            st.chat_message("assistant").write(risposta)
