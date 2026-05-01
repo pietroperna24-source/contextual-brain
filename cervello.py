@@ -3,17 +3,22 @@ import os
 from groq import Groq
 from dotenv import load_dotenv
 
+# Configurazione percorsi
 base_dir = os.path.dirname(__file__)
 load_dotenv(os.path.join(base_dir, ".env"))
 
+# Inizializzazione Client Groq
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 def carica_memoria(username):
     file_path = os.path.join(base_dir, f"memoria_{username}.json")
-    if not os.path.exists(file_path): return {}
-    with open(file_path, "r", encoding="utf-8") as f:
-        try: return json.load(f)
-        except: return {}
+    if not os.path.exists(file_path):
+        return {}
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return {}
 
 def salva_memoria(username, dati):
     file_path = os.path.join(base_dir, f"memoria_{username}.json")
@@ -23,34 +28,40 @@ def salva_memoria(username, dati):
 def elabora_concetto(username, testo_utente):
     memoria_attuale = carica_memoria(username)
     
+    # Prompt di sistema per istruire l'IA
     system_prompt = f"""
-    Sei un assistente personale intelligente. 
-    L'utente attuale è: {username}.
-    Memoria attuale: {json.dumps(memoria_attuale)}
+    Sei un assistente personale per l'utente {username}.
+    Hai accesso a questa memoria: {json.dumps(memoria_attuale)}
     
-    REGOLE:
-    1. Se l'utente ti dice di ricordare qualcosa, rispondi con: SAVE|chiave|valore
-    2. Altrimenti rispondi normalmente.
-    3. Sii breve e amichevole.
+    ISTRUZIONI:
+    1. Se l'utente ti dà un'informazione da ricordare, rispondi con: SAVE|chiave|valore
+    2. Altrimenti rispondi normalmente consultando la memoria se necessario.
+    3. Sii sintetico e amichevole.
     """
 
     try:
         completion = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
-            messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": testo_utente}],
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": testo_utente}
+            ],
             temperature=0.6
         )
         risposta_ai = completion.choices[0].message.content
 
+        # Gestione del salvataggio
         if "SAVE|" in risposta_ai:
             parti = risposta_ai.split("|")
             if len(parti) >= 3:
-                chiave, valore = parti[1].strip(), parti[2].strip()
+                chiave = parti[1].strip()
+                valore = parti[2].strip()
                 memoria_attuale[chiave] = valore
                 salva_memoria(username, memoria_attuale)
-                # Messaggio chiave per far scattare la notifica nel main.py
-                return f"Ho memorizzato una nuova informazione: {chiave} è {valore}."
+                # Questa frase precisa fa scattare il trigger nel main.py
+                return f"Ho memorizzato nel tuo database: {chiave} = {valore}."
         
         return risposta_ai
+
     except Exception as e:
-        return f"Errore: {str(e)}"
+        return f"Errore nel cervello: {str(e)}"
