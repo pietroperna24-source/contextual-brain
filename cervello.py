@@ -1,137 +1,94 @@
-import streamlit as st
-import cervello
 import json
 import os
+from groq import Groq
+from dotenv import load_dotenv
 
-# --- 1. CONFIGURAZIONE PAGINA ---
-st.set_page_config(
-    page_title="Cervello Contextual", 
-    page_icon="🧠",
-    layout="centered"
-)
+# --- CONFIGURAZIONE AMBIENTE ---
+base_dir = os.path.dirname(__file__)
+# Carica le variabili dal file .env (solo per test locale)
+load_dotenv(os.path.join(base_dir, ".env"))
 
-# --- 2. LOGO E STILE CSS PER MOBILE ---
-def applica_estetica():
-    # URL di un logo moderno (puoi cambiarlo con il tuo)
-    url_logo = "https://cdn-icons-png.flaticon.com/512/4712/4712139.png"
-    
-    st.markdown(f"""
-        <style>
-            /* Centra il logo */
-            .logo-container {{
-                display: flex;
-                justify-content: center;
-                margin-bottom: 20px;
-            }}
-            .logo-img {{
-                width: 100px;
-            }}
-            /* Rende i bottoni grandi per il touch del cellulare */
-            div.stButton > button:first-child {{
-                height: 3.5em;
-                width: 100%;
-                border-radius: 12px;
-                font-size: 18px;
-                font-weight: bold;
-                background-color: #00ffcc;
-                color: #1e1e1e;
-                border: none;
-            }}
-            /* Stile per i box di input */
-            .stTextInput > div > div > input {{
-                border-radius: 10px;
-            }}
-        </style>
-        <div class="logo-container">
-            <img class="logo-img" src="{url_logo}">
-        </div>
-        """, unsafe_allow_html=True)
+# Recupero della chiave API (da .env in locale o Secrets su Streamlit)
+api_key = os.getenv("GROQ_API_KEY")
+client = Groq(api_key=api_key)
 
-# --- 3. FUNZIONI GESTIONE UTENTI ---
-UTENTI_FILE = "utenti.json"
-
-def carica_utenti():
-    if not os.path.exists(UTENTI_FILE):
+def carica_memoria(username):
+    """Carica il database JSON specifico per l'utente."""
+    file_memoria = os.path.join(base_dir, f"memoria_{username}.json")
+    if not os.path.exists(file_memoria):
         return {}
-    with open(UTENTI_FILE, "r") as f:
+    with open(file_memoria, "r", encoding="utf-8") as f:
         try:
             return json.load(f)
         except:
             return {}
 
-def salva_nuovo_utente(username, password):
-    utenti = carica_utenti()
-    utenti[username] = password
-    with open(UTENTI_FILE, "w") as f:
-        json.dump(utenti, f)
+def salva_memoria(username, dati):
+    """Salva i dati nel database JSON specifico per l'utente."""
+    file_memoria = os.path.join(base_dir, f"memoria_{username}.json")
+    with open(file_memoria, "w", encoding="utf-8") as f:
+        json.dump(dati, f, indent=4, ensure_ascii=False)
 
-# --- 4. LOGICA DI ACCESSO ---
-if 'autenticato' not in st.session_state:
-    st.session_state.autenticato = False
-    st.session_state.utente_attuale = None
-
-applica_estetica()
-
-if not st.session_state.autenticato:
-    st.title("Benvenuto nel tuo Cervello")
-    tab1, tab2 = st.tabs(["🔑 Accedi", "📝 Registrati"])
+def elabora_concetto(username, testo_utente):
+    """
+    Invia il testo a Groq, analizza se c'è qualcosa da memorizzare
+    e restituisce la risposta testuale per l'interfaccia.
+    """
     
-    with tab1:
-        u = st.text_input("Username", key="login_user")
-        p = st.text_input("Password", type="password", key="login_pwd")
-        if st.button("ACCEDI"):
-            db = carica_utenti()
-            if u in db and db[u] == p:
-                st.session_state.autenticato = True
-                st.session_state.utente_attuale = u
-                st.rerun()
-            else:
-                st.error("Credenziali non corrette.")
-
-    with tab2:
-        nuovo_u = st.text_input("Scegli un Username", key="reg_user")
-        nuovo_p = st.text_input("Scegli una Password", type="password", key="reg_pwd")
-        if st.button("CREA ACCOUNT"):
-            db = carica_utenti()
-            if nuovo_u in db:
-                st.warning("Questo username esiste già.")
-            elif nuovo_u == "" or nuovo_p == "":
-                st.error("Compila tutti i campi.")
-            else:
-                salva_nuovo_utente(nuovo_u, nuovo_p)
-                st.success("Registrazione completata! Ora puoi accedere.")
-
-else:
-    # --- 5. INTERFACCIA APP PRINCIPALE (DOPO IL LOGIN) ---
-    st.sidebar.title(f"Ciao, {st.session_state.utente_attuale}")
-    if st.sidebar.button("Esci"):
-        st.session_state.autenticato = False
-        st.session_state.utente_attuale = None
-        st.rerun()
-
-    st.title("🧠 Memoria Attiva")
+    # Recuperiamo la memoria storica di questo specifico utente
+    memoria_attuale = carica_memoria(username)
     
-    input_utente = st.text_area("Cosa vuoi che io ricordi o chiedermi?", placeholder="Esempio: Ricorda che il mio codice cliente è A10")
+    # Istruzioni di sistema (Prompt) per l'IA
+    system_prompt = f"""
+    Sei un assistente virtuale maschile chiamato 'Cervello Contestuale'. 
+    Il tuo compito è aiutare l'utente {username} a ricordare informazioni e rispondere alle sue domande.
     
-    if st.button("🚀 ELABORA"):
-        if input_utente:
-            with st.spinner("L'IA sta pensando..."):
-                # Salviamo l'input nel file temporaneo per il modulo cervello
-                with open("input_recente.txt", "w", encoding="utf-8") as f:
-                    f.write(input_utente)
+    MEMORIA ATTUALE DELL'UTENTE:
+    {json.dumps(memoria_attuale)}
+    
+    REGOLE DI RISPOSTA:
+    1. Se l'utente ti dà un'info da ricordare (es: 'Ricorda che...'), rispondi iniziando con 'SAVE|chiave|valore'.
+    2. Se l'utente fa una domanda, consulta la memoria fornita sopra.
+    3. Sii amichevole, usa un tono maschile e sii molto sintetico (massimo 2-3 frasi).
+    4. Non menzionare mai i formati tecnici come JSON o 'SAVE|' all'utente finale.
+    """
+
+    try:
+        # Chiamata a Groq (Llama 3.3)
+        completion = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": testo_utente}
+            ],
+            temperature=0.6,
+            max_tokens=500
+        )
+        
+        risposta_ai = completion.choices[0].message.content
+
+        # --- LOGICA DI SALVATAGGIO IN MEMORIA ---
+        if "SAVE|" in risposta_ai:
+            # Estraiamo i dati dal formato SAVE|chiave|valore
+            parti = risposta_ai.split("|")
+            if len(parti) >= 3:
+                chiave = parti[1].strip()
+                valore = parti[2].strip()
                 
-                # Passiamo l'utente attuale alla funzione del cervello
-                risposta = cervello.elabora_concetto(st.session_state.utente_attuale, input_utente)
+                # Aggiorniamo il JSON dell'utente
+                memoria_attuale[chiave] = valore
+                salva_memoria(username, memoria_attuale)
                 
-                st.chat_message("assistant").write(risposta)
-        else:
-            st.warning("Scrivi qualcosa prima di inviare.")
+                return f"Ho recepito e memorizzato: **{chiave}** è **{valore}**. Cos'altro posso fare per te?"
+        
+        # Risposta standard se non c'è nulla da salvare
+        return risposta_ai
 
-    # Expander per visualizzare i dati salvati
-    with st.sidebar.expander("📂 La tua Memoria"):
-        memoria_user = f"memoria_{st.session_state.utente_attuale}.json"
-        if os.path.exists(memoria_user):
-            with open(memoria_user, "r", encoding="utf-8") as f:
-                st.json(json.load(f))
-        else:
-            st.write("Ancora nulla in memoria.")
+    except Exception as e:
+        return f"Scusa {username}, ho avuto un piccolo corto circuito tecnico: {str(e)}"
+
+# Se il file viene lanciato da solo (test)
+if __name__ == "__main__":
+    test_user = "Pietro"
+    test_input = "Ricorda che la mia pizza preferita è la Diavola"
+    print(f"TEST LOGICA: {elabora_concetto(test_user, test_input)}")
