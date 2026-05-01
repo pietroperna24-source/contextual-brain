@@ -1,24 +1,26 @@
-import ascolto
+import streamlit as st
 import cervello
-import time
+import os
 
+st.set_page_config(page_title="Cervello Contextual", page_icon="🧠")
 
-def avvia_app():
-    print("=== CONTEXTUAL BRAIN V1.0 ===")
-    while True:
-        # 1. Fase di ascolto
-        input_utente = ascolto.attiva_cervello()
+st.title("🧠 Il mio Assistente Personale")
 
-        if input_utente:
-            # 2. Fase di elaborazione (se abbiamo sentito qualcosa)
+# Creiamo un'area di testo invece dell'ascolto vocale
+input_testo = st.text_input("Scrivi qualcosa all'IA:", placeholder="Es: Ricorda che mi piace il caffè")
+
+if st.button("Invia al Cervello"):
+    if input_testo:
+        # Salviamo l'input in un file temporaneo così il tuo vecchio cervello.py lo legge
+        with open("input_recente.txt", "w", encoding="utf-8") as f:
+            f.write(input_testo)
+        
+        with st.spinner("L'IA sta elaborando..."):
+            # Chiamiamo la logica del cervello
             cervello.elabora_concetto()
-
-        print("\nPronto per il prossimo comando... (Ctrl+C per chiudere)")
-        time.sleep(1)
-
-
-if __name__ == "__main__":
-    try:
-        avvia_app()
-    except KeyboardInterrupt:
-        print("\nSpegnimento del Cervello. A presto!")
+            
+            # Leggiamo la risposta se l'abbiamo salvata in un log o la mostriamo
+            st.success("Comando elaborato!")
+            st.info("Nota: Sul web la risposta vocale è disattivata. Controlla la memoria.json su GitHub.")
+    else:
+        st.warning("Inserisci del testo prima di premere il bottone.")
