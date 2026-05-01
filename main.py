@@ -3,135 +3,91 @@ import cervello
 import json
 import os
 
-# --- 1. CONFIGURAZIONE PAGINA ---
-st.set_page_config(
-    page_title="Cervello Contextual", 
-    page_icon="🧠",
-    layout="centered"
-)
+# --- CONFIGURAZIONE PAGINA ---
+st.set_page_config(page_title="Cervello Contextual v2", page_icon="🧠", layout="wide")
 
-# --- 2. LOGO E STILE CSS PER MOBILE ---
-def applica_estetica():
-    # URL di un logo moderno (puoi cambiarlo con il tuo)
-    url_logo = "https://cdn-icons-png.flaticon.com/512/4712/4712139.png"
-    
-    st.markdown(f"""
-        <style>
-            /* Centra il logo */
-            .logo-container {{
-                display: flex;
-                justify-content: center;
-                margin-bottom: 20px;
-            }}
-            .logo-img {{
-                width: 100px;
-            }}
-            /* Rende i bottoni grandi per il touch del cellulare */
-            div.stButton > button:first-child {{
-                height: 3.5em;
-                width: 100%;
-                border-radius: 12px;
-                font-size: 18px;
-                font-weight: bold;
-                background-color: #00ffcc;
-                color: #1e1e1e;
-                border: none;
-            }}
-            /* Stile per i box di input */
-            .stTextInput > div > div > input {{
-                border-radius: 10px;
-            }}
-        </style>
-        <div class="logo-container">
-            <img class="logo-img" src="{url_logo}">
-        </div>
-        """, unsafe_allow_html=True)
+# --- STILE CSS AVANZATO ---
+st.markdown("""
+    <style>
+    .main { background-color: #0e1117; }
+    .stTextInput > div > div > input { border-radius: 20px; }
+    .stButton > button { width: 100%; border-radius: 20px; transition: 0.3s; }
+    .stButton > button:hover { transform: scale(1.02); background-color: #00ffcc; color: black; }
+    .sidebar .sidebar-content { background-image: linear-gradient(#2e3440,#2e3440); }
+    </style>
+    """, unsafe_allow_html=True)
 
-# --- 3. FUNZIONI GESTIONE UTENTI ---
-UTENTI_FILE = "utenti.json"
-
+# --- FUNZIONI UTILI ---
 def carica_utenti():
-    if not os.path.exists(UTENTI_FILE):
-        return {}
-    with open(UTENTI_FILE, "r") as f:
-        try:
-            return json.load(f)
-        except:
-            return {}
+    if not os.path.exists("utenti.json"): return {}
+    with open("utenti.json", "r") as f: return json.load(f)
 
-def salva_nuovo_utente(username, password):
-    utenti = carica_utenti()
-    utenti[username] = password
-    with open(UTENTI_FILE, "w") as f:
-        json.dump(utenti, f)
-
-# --- 4. LOGICA DI ACCESSO ---
+# --- SESSION STATE ---
 if 'autenticato' not in st.session_state:
     st.session_state.autenticato = False
     st.session_state.utente_attuale = None
 
-applica_estetica()
-
+# --- LOGIN / REGISTRAZIONE ---
 if not st.session_state.autenticato:
-    st.title("Benvenuto nel tuo Cervello")
-    tab1, tab2 = st.tabs(["🔑 Accedi", "📝 Registrati"])
-    
-    with tab1:
-        u = st.text_input("Username", key="login_user")
-        p = st.text_input("Password", type="password", key="login_pwd")
-        if st.button("ACCEDI"):
+    col1, col2, col3 = st.columns([1,2,1])
+    with col2:
+        st.image("https://cdn-icons-png.flaticon.com/512/4712/4712139.png", width=100)
+        menu = st.selectbox("Cosa vuoi fare?", ["Login", "Registrati"])
+        u = st.text_input("Username")
+        p = st.text_input("Password", type="password")
+        if st.button("ENTRA"):
             db = carica_utenti()
             if u in db and db[u] == p:
                 st.session_state.autenticato = True
                 st.session_state.utente_attuale = u
                 st.rerun()
-            else:
-                st.error("Credenziali non corrette.")
-
-    with tab2:
-        nuovo_u = st.text_input("Scegli un Username", key="reg_user")
-        nuovo_p = st.text_input("Scegli una Password", type="password", key="reg_pwd")
-        if st.button("CREA ACCOUNT"):
-            db = carica_utenti()
-            if nuovo_u in db:
-                st.warning("Questo username esiste già.")
-            elif nuovo_u == "" or nuovo_p == "":
-                st.error("Compila tutti i campi.")
-            else:
-                salva_nuovo_utente(nuovo_u, nuovo_p)
-                st.success("Registrazione completata! Ora puoi accedere.")
-
+            else: st.error("Credenziali errate")
 else:
-    # --- 5. INTERFACCIA APP PRINCIPALE (DOPO IL LOGIN) ---
-    st.sidebar.title(f"Ciao, {st.session_state.utente_attuale}")
-    if st.sidebar.button("Esci"):
-        st.session_state.autenticato = False
-        st.session_state.utente_attuale = None
-        st.rerun()
+    # --- BARRA LATERALE (SIDEBAR) ---
+    with st.sidebar:
+        st.image("https://cdn-icons-png.flaticon.com/512/4712/4712139.png", width=80)
+        st.title(f"Piacere, {st.session_state.utente_attuale}")
+        scelta = st.radio("Naviga", ["💬 Chat", "🧠 Memoria", "⚙️ Impostazioni"])
+        
+        st.write("---")
+        if st.button("Esci"):
+            st.session_state.autenticato = False
+            st.rerun()
 
-    st.title("🧠 Memoria Attiva")
-    
-    input_utente = st.text_area("Cosa vuoi che io ricordi o chiedermi?", placeholder="Esempio: Ricorda che il mio codice cliente è A10")
-    
-    if st.button("🚀 ELABORA"):
-        if input_utente:
-            with st.spinner("L'IA sta pensando..."):
-                # Salviamo l'input nel file temporaneo per il modulo cervello
-                with open("input_recente.txt", "w", encoding="utf-8") as f:
-                    f.write(input_utente)
-                
-                # Passiamo l'utente attuale alla funzione del cervello
-                risposta = cervello.elabora_concetto(st.session_state.utente_attuale, input_utente)
-                
-                st.chat_message("assistant").write(risposta)
-        else:
-            st.warning("Scrivi qualcosa prima di inviare.")
+    # --- SEZIONE CHAT ---
+    if scelta == "💬 Chat":
+        st.title("💬 Chiedi al tuo Cervello")
+        container = st.container()
+        with container:
+            input_utente = st.chat_input("Scrivi qui...")
+            if input_utente:
+                st.chat_message("user").write(input_utente)
+                with st.spinner("Pensando..."):
+                    risposta = cervello.elabora_concetto(st.session_state.utente_attuale, input_utente)
+                    st.chat_message("assistant").write(risposta)
 
-    # Expander per visualizzare i dati salvati
-    with st.sidebar.expander("📂 La tua Memoria"):
-        memoria_user = f"memoria_{st.session_state.utente_attuale}.json"
-        if os.path.exists(memoria_user):
-            with open(memoria_user, "r", encoding="utf-8") as f:
-                st.json(json.load(f))
+    # --- SEZIONE MEMORIA ---
+    elif scelta == "🧠 Memoria":
+        st.title("🧠 Cosa ricordo di te")
+        dati = cervello.carica_memoria(st.session_state.utente_attuale)
+        if dati:
+            for k, v in dati.items():
+                st.info(f"**{k}**: {v}")
         else:
-            st.write("Ancora nulla in memoria.")
+            st.write("La tua memoria è vuota.")
+
+    # --- SEZIONE IMPOSTAZIONI ---
+    elif scelta == "⚙️ Impostazioni":
+        st.title("⚙️ Impostazioni Utente")
+        st.subheader("Personalizzazione")
+        tema = st.selectbox("Colore Tema (Simulato)", ["Dark Blue", "Emerald", "Sunset"])
+        
+        st.write("---")
+        st.subheader("Gestione Dati")
+        if st.button("⚠️ CANCELLA TUTTA LA MEMORIA"):
+            file_m = f"memoria_{st.session_state.utente_attuale}.json"
+            if os.path.exists(file_m):
+                os.remove(file_m)
+                st.success("Memoria pulita con successo!")
+            else:
+                st.warning("Nessun dato da cancellare.")
