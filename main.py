@@ -2,25 +2,49 @@ import streamlit as st
 import cervello
 import os
 
-st.set_page_config(page_title="Cervello Contextual", page_icon="🧠")
+# Configurazione Pagina Mobile
+st.set_page_config(
+    page_title="Cervello Mobile",
+    page_icon="🧠",
+    layout="centered"
+)
 
-st.title("🧠 Il mio Assistente Personale")
+# CSS personalizzato per rendere i bottoni grandi (facili da cliccare col pollice)
+st.markdown("""
+    <style>
+    div.stButton > button:first-child {
+        height: 3em;
+        width: 100%;
+        border-radius: 10px;
+        font-size: 20px;
+        font-weight: bold;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-# Creiamo un'area di testo invece dell'ascolto vocale
-input_testo = st.text_input("Scrivi qualcosa all'IA:", placeholder="Es: Ricorda che mi piace il caffè")
+st.title("🧠 Assistente IA")
+st.write("Scrivi e memorizza i tuoi pensieri.")
 
-if st.button("Invia al Cervello"):
-    if input_testo:
-        # Salviamo l'input in un file temporaneo così il tuo vecchio cervello.py lo legge
+# Input di testo (sostituisce il microfono che non va sul web)
+input_utente = st.text_input("Cosa vuoi dirmi?", placeholder="Esempio: Ricorda la password della palestra è 5566")
+
+if st.button("🚀 ELABORA"):
+    if input_utente:
+        # Salviamo l'input per il modulo cervello
         with open("input_recente.txt", "w", encoding="utf-8") as f:
-            f.write(input_testo)
+            f.write(input_utente)
         
-        with st.spinner("L'IA sta elaborando..."):
-            # Chiamiamo la logica del cervello
-            cervello.elabora_concetto()
-            
-            # Leggiamo la risposta se l'abbiamo salvata in un log o la mostriamo
-            st.success("Comando elaborato!")
-            st.info("Nota: Sul web la risposta vocale è disattivata. Controlla la memoria.json su GitHub.")
+        with st.spinner("Sto pensando..."):
+            # Chiamiamo la logica di Groq
+            risposta = cervello.elabora_concetto()
+            st.success("Operazione completata!")
+            # Se cervello.py restituisce la risposta, la mostriamo qui
+            if risposta:
+                st.chat_message("assistant").write(risposta)
     else:
-        st.warning("Inserisci del testo prima di premere il bottone.")
+        st.warning("Ehi, scrivi qualcosa prima!")
+
+# Visualizzazione della memoria attuale
+if st.expander("📂 Guarda la tua memoria"):
+    memoria = cervello.carica_memoria()
+    st.json(memoria)
