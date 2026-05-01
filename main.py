@@ -3,6 +3,22 @@ import cervello
 import json
 import os
 
+def invia_notifica_browser(titolo, messaggio):
+    js_notifica = f"""
+    <script>
+    if (Notification.permission === "granted") {{
+        new Notification("{titolo}", {{ body: "{messaggio}" }});
+    }} else if (Notification.permission !== "denied") {{
+        Notification.requestPermission().then(permission => {{
+            if (permission === "granted") {{
+                new Notification("{titolo}", {{ body: "{messaggio}" }});
+            }}
+        }});
+    }}
+    </script>
+    """
+    st.components.v1.html(js_notifica, height=0)
+    
 # --- 1. CONFIGURAZIONE PAGINA (Indispensabile per l'icona e il titolo dell'app) ---
 st.set_page_config(
     page_title="Cervello Contextual", 
