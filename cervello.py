@@ -28,17 +28,19 @@ def salva_memoria(dati):
         json.dump(dati, f, indent=4, ensure_ascii=False)
 
 # --- ELABORAZIONE ---
-def elabora_concetto():
-    """
-    Legge l'input, interroga Groq e gestisce la memoria.
-    Restituisce la risposta testuale per l'interfaccia.
-    """
-    input_path = os.path.join(base_dir, "input_recente.txt")
-    if not os.path.exists(input_path): 
-        return "Nessun input trovato."
+def elabora_concetto(username, testo_utente):
+    # Il database ora ha il nome dell'utente
+    DB_FILE = f"memoria_{username}.json"
+    
+    def carica_memoria():
+        if not os.path.exists(DB_FILE): return {}
+        with open(DB_FILE, "r", encoding="utf-8") as f:
+            try: return json.load(f)
+            except: return {}
 
-    with open(input_path, "r", encoding="utf-8") as f:
-        testo_utente = f.read()
+    def salva_memoria(dati):
+        with open(DB_FILE, "w", encoding="utf-8") as f:
+            json.dump(dati, f, indent=4, ensure_ascii=False)
 
     memoria_attuale = carica_memoria()
     
