@@ -3,7 +3,7 @@ import json
 import os
 import streamlit.components.v1 as components
 
-# Prova a importare il modulo cervello, con fallback se manca
+# Prova a importare il modulo cervello
 try:
     import cervello
 except ImportError:
@@ -11,13 +11,14 @@ except ImportError:
 
 # --- 1. CONFIGURAZIONE PAGINA ---
 st.set_page_config(
-    page_title="Cervello Contextual PRO v3",
+    page_title="Cervello Contextual Ultimate",
     page_icon="🧠",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# --- 2. UI ENHANCEMENT (JS & CSS) ---
+# --- 2. UI ENGINE (JS & CSS) ---
+# Pulizia elementi Streamlit e gestione scroll
 components.html("""
     <script>
     const cleanUI = () => {
@@ -33,45 +34,57 @@ components.html("""
 
 st.markdown("""
     <style>
-        .stApp { background-color: #F4F7F9; }
-        [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #DDE4E8; }
+        .stApp { background-color: #F8F9FB; }
+        [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #EAEAEA; }
         
-        /* Box Messaggi */
-        .stChatMessage { border-radius: 15px; margin-bottom: 10px; }
-        
-        /* Bottoni Custom */
-        div.stButton > button {
-            border-radius: 8px;
-            transition: all 0.2s ease;
-            border: 1px solid #6C5CE7;
-        }
-        div.stButton > button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(108, 92, 231, 0.2);
-        }
-        
-        /* Toolbar Superiore */
-        .toolbar {
+        /* Toolbar Superiore Fissa */
+        .nav-container {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 10px 20px;
+            padding: 10px;
             background: white;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        /* Bottoni */
+        .stButton>button {
             border-radius: 12px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+        
+        /* Box Memoria nel Catalogo */
+        .mem-card {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 5px solid #6C5CE7;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.03);
         }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. CORE DATABASE ENGINE ---
+# --- 3. GESTIONE DATI (DATABASE) ---
 DB_FILE = "utenti.json"
 
-def carica_db():
+def inizializza_db():
     if not os.path.exists(DB_FILE):
-        db = {"admin": {"pass": "admin123", "history": [], "role": "admin"}}
-        salva_db(db)
-        return db
+        default_db = {
+            "admin": {
+                "pass": "admin123", 
+                "history": [], 
+                "role": "admin",
+                "settings": {"theme": "light"}
+            }
+        }
+        salva_db(default_db)
+
+def carica_db():
+    inizializza_db()
     with open(DB_FILE, "r") as f:
         return json.load(f)
 
@@ -79,70 +92,70 @@ def salva_db(db):
     with open(DB_FILE, "w") as f:
         json.dump(db, f, indent=4)
 
-# --- 4. SESSION STATE INITIALIZATION ---
+# --- 4. SESSION STATE ---
 if 'autenticato' not in st.session_state:
     st.session_state.update({
         'autenticato': False,
-        'utente_attuale': None,
-        'role': 'user',
-        'chat_history': [],
+        'utente': None,
+        'ruolo': 'user',
+        'history': [],
         'pagina': 'chat'
     })
 
-# --- 5. SISTEMA DI ACCESSO ---
+# --- 5. LOGICA DI ACCESSO ---
 if not st.session_state.autenticato:
-    col_l, col_c, col_r = st.columns([1, 1.5, 1])
+    _, col_c, _ = st.columns([1, 1.5, 1])
     with col_c:
         st.write("##")
-        st.markdown("<h1 style='text-align: center;'>🧠 Contextual Brain</h1>", unsafe_allow_html=True)
-        tab_l, tab_r = st.tabs(["🔐 Login", "📝 Registrazione"])
+        st.markdown("<h1 style='text-align: center;'>🧠 Cervello Contextual</h1>", unsafe_allow_html=True)
+        tab_log, tab_reg = st.tabs(["🔐 Entra", "📝 Registrati"])
         
-        with tab_l:
-            u = st.text_input("Username", placeholder="admin")
-            p = st.text_input("Password", type="password", placeholder="admin123")
-            if st.button("ACCEDI ALL'APP", use_container_width=True):
+        with tab_log:
+            u = st.text_input("Username")
+            p = st.text_input("Password", type="password")
+            if st.button("ACCEDI", use_container_width=True):
                 db = carica_db()
                 if u in db and db[u]["pass"] == p:
                     st.session_state.update({
                         'autenticato': True,
-                        'utente_attuale': u,
-                        'role': db[u].get("role", "user"),
-                        'chat_history': db[u].get("history", [])
+                        'utente': u,
+                        'ruolo': db[u].get("role", "user"),
+                        'history': db[u].get("history", [])
                     })
                     st.rerun()
                 else:
-                    st.error("Accesso negato. Riprova.")
-                    
-        with tab_r:
-            nu = st.text_input("Nuovo User")
-            np = st.text_input("Nuova Pass", type="password")
+                    st.error("Credenziali errate.")
+
+        with tab_reg:
+            nu = st.text_input("Scegli Username")
+            np = st.text_input("Scegli Password", type="password")
             if st.button("CREA ACCOUNT", use_container_width=True):
-                if nu and np:
-                    db = carica_db()
-                    if nu not in db:
-                        db[nu] = {"pass": np, "history": [], "role": "user"}
-                        salva_db(db)
-                        st.success("Account creato con successo!")
-                    else: st.warning("Utente già esistente.")
+                db = carica_db()
+                if nu and nu not in db:
+                    db[nu] = {"pass": np, "history": [], "role": "user"}
+                    salva_db(db)
+                    st.success("Registrazione completata!")
+                else:
+                    st.warning("Username non disponibile.")
 
 else:
-    # --- 6. SIDEBAR & CATALOGO ---
+    # --- 6. SIDEBAR & MENU ---
     with st.sidebar:
-        st.markdown(f"### 👤 {st.session_state.utente_attuale.upper()}")
-        st.caption(f"Status: {st.session_state.role.upper()}")
+        st.markdown(f"### 👤 {st.session_state.utente.upper()}")
+        st.caption(f"Livello Accesso: {st.session_state.ruolo}")
         st.write("---")
         
-        # Navigazione Rapida
         if st.button("💬 Chat AI", use_container_width=True):
             st.session_state.pagina = "chat"
             st.rerun()
             
-        if st.button("📂 Catalogo Memoria", use_container_width=True):
+        if st.button("📚 Catalogo Memorie", use_container_width=True):
             st.session_state.pagina = "memoria"
             st.rerun()
             
-        if st.session_state.role == "admin":
-            if st.button("🛡️ Pannello Admin", use_container_width=True):
+        if st.session_state.ruolo == "admin":
+            st.write("---")
+            if st.button("🛡️ Dashboard Admin", use_container_width=True):
                 st.session_state.pagina = "admin"
                 st.rerun()
         
@@ -150,86 +163,102 @@ else:
         if st.button("⚙️ Impostazioni", use_container_width=True):
             st.session_state.pagina = "impostazioni"
             st.rerun()
-            
+
         if st.button("🚪 Logout", use_container_width=True, type="primary"):
             st.session_state.autenticato = False
             st.rerun()
 
-    # --- 7. TOOLBAR SUPERIORE (Tasto Indietro Dinamico) ---
-    col_tit, col_back = st.columns([0.8, 0.2])
-    with col_back:
-        if st.session_state.pagina != "chat":
+    # --- 7. NAVIGAZIONE (Tasto Indietro) ---
+    if st.session_state.pagina != "chat":
+        col_tit, col_back = st.columns([0.8, 0.2])
+        with col_back:
             if st.button("⬅️ INDIETRO", use_container_width=True):
                 st.session_state.pagina = "chat"
                 st.rerun()
 
-    # --- 8. LOGICA PAGINE ---
+    # --- 8. LOGICA DELLE PAGINE ---
 
-    # --- PAGINA ADMIN ---
-    if st.session_state.pagina == "admin" and st.session_state.role == "admin":
-        st.title("🛡️ Amministrazione")
-        db = carica_db()
+    # --- PAGINA: CHAT ---
+    if st.session_state.pagina == "chat":
+        st.markdown(f"<h3 style='text-align: center;'>Conversazione con il Brain</h3>", unsafe_allow_html=True)
         
-        st.subheader("Database Utenti")
-        for u_id, u_data in db.items():
-            with st.expander(f"Utente: {u_id}"):
-                st.write(f"Ruolo: {u_data['role']}")
-                st.write(f"Messaggi in memoria: {len(u_data['history'])}")
-                if u_id != "admin":
-                    if st.button(f"Elimina Account {u_id}", key=f"del_{u_id}"):
-                        del db[u_id]
-                        salva_db(db)
-                        st.rerun()
+        # Visualizzazione cronologia
+        for msg in st.session_state.history:
+            with st.chat_message(msg["role"]):
+                st.write(msg["content"])
 
-    # --- PAGINA MEMORIA ---
-    elif st.session_state.pagina == "memoria":
-        st.title("📂 Il tuo Catalogo")
-        if cervello:
-            try:
-                mem = cervello.carica_memoria(st.session_state.utente_attuale)
-                if mem:
-                    for k, v in mem.items():
-                        st.info(f"**{k}**: {v}")
-                else: st.warning("La tua memoria è vuota. Inizia a chattare!")
-            except: st.error("Errore nel recupero dati.")
-        else:
-            st.error("Modulo 'cervello' non rilevato.")
+        # Input Chat
+        if prompt := st.chat_input("Scrivi qui..."):
+            st.session_state.history.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.write(prompt)
 
-    # --- PAGINA IMPOSTAZIONI ---
-    elif st.session_state.pagina == "impostazioni":
-        st.title("⚙️ Impostazioni")
-        if st.button("🗑️ Reset Cronologia Chat"):
-            st.session_state.chat_history = []
-            db = carica_db()
-            db[st.session_state.utente_attuale]["history"] = []
-            salva_db(db)
-            st.success("Tabula rasa effettuata.")
-
-    # --- PAGINA CHAT ---
-    else:
-        st.markdown("<h2 style='text-align: center;'>🧠 Brain Interface</h2>", unsafe_allow_html=True)
-        
-        # Display Chat
-        for m in st.session_state.chat_history:
-            with st.chat_message(m["role"]):
-                st.write(m["content"])
-
-        # Chat Input
-        if prompt := st.chat_input("Digita un comando o un'informazione..."):
-            st.session_state.chat_history.append({"role": "user", "content": prompt})
-            with st.chat_message("user"): st.write(prompt)
-
+            # Elaborazione tramite modulo cervello
             if cervello:
                 try:
-                    res = cervello.elabora_concetto(st.session_state.utente_attuale, prompt)
-                    with st.chat_message("assistant"): st.write(res)
-                    st.session_state.chat_history.append({"role": "assistant", "content": res})
+                    risposta = cervello.elabora_concetto(st.session_state.utente, prompt)
+                    with st.chat_message("assistant"):
+                        st.write(risposta)
+                    st.session_state.history.append({"role": "assistant", "content": risposta})
                     
-                    # Salvataggio immediato
+                    # Salvataggio nel DB
                     db = carica_db()
-                    db[st.session_state.utente_attuale]["history"] = st.session_state.chat_history
+                    db[st.session_state.utente]["history"] = st.session_state.history
                     salva_db(db)
                 except Exception as e:
-                    st.error(f"Errore elaborazione: {e}")
+                    st.error(f"Errore tecnico: {e}")
             else:
-                st.warning("Sistema di IA non collegato (Modulo 'cervello' mancante).")
+                st.warning("IA non collegata.")
+
+    # --- PAGINA: MEMORIA (CATALOGO) ---
+    elif st.session_state.pagina == "memoria":
+        st.title("📚 Catalogo Memorie")
+        st.write("Ecco i concetti salvati nel tuo cervello contestuale:")
+        
+        if cervello:
+            try:
+                mem = cervello.carica_memoria(st.session_state.utente)
+                if mem:
+                    for chiave, valore in mem.items():
+                        st.markdown(f"""
+                        <div class="mem-card">
+                            <strong>📌 {chiave}</strong><br>
+                            <small>{valore}</small>
+                        </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.info("La memoria è ancora vuota.")
+            except:
+                st.error("Impossibile leggere la memoria.")
+
+    # --- PAGINA: ADMIN ---
+    elif st.session_state.pagina == "admin" and st.session_state.ruolo == "admin":
+        st.title("🛡️ Amministrazione Sistema")
+        db = carica_db()
+        
+        tab_utenti, tab_sistema = st.tabs(["Utenti", "Stato Sistema"])
+        
+        with tab_utenti:
+            for user, data in db.items():
+                c1, c2, c3 = st.columns([2, 1, 1])
+                c1.write(f"**{user}**")
+                c2.write(f"Ruolo: {data['role']}")
+                if user != "admin":
+                    if c3.button("Elimina", key=f"del_{user}"):
+                        del db[user]
+                        salva_db(db)
+                        st.rerun()
+        
+        with tab_sistema:
+            st.metric("Utenti Totali", len(db))
+            st.write("Il database è localizzato in:", os.path.abspath(DB_FILE))
+
+    # --- PAGINA: IMPOSTAZIONI ---
+    elif st.session_state.pagina == "impostazioni":
+        st.title("⚙️ Impostazioni Profilo")
+        if st.button("🗑️ Svuota Cronologia Chat"):
+            st.session_state.history = []
+            db = carica_db()
+            db[st.session_state.utente]["history"] = []
+            salva_db(db)
+            st.success("Cronologia svuotata correttamente.")
