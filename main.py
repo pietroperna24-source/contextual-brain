@@ -12,149 +12,138 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- 2. JAVASCRIPT AGGRESSIVO (Per eliminare badge e barre extra) ---
-# Questo script gira nel browser e rimuove forzatamente gli elementi in basso a destra
-st.components.v1.html("""
+# --- 2. JS KILLER (Rimuove badge e icone indesiderate) ---
+components.html("""
     <script>
-    const removeElements = () => {
-        // Rimuove il badge di Streamlit Cloud (la corona)
-        const badge = window.parent.document.querySelector(".viewerBadge_container__1QSob");
-        if (badge) badge.remove();
-        
-        // Rimuove la barra di deploy/notifica se presente
-        const deployBtn = window.parent.document.querySelector(".stDeployButton");
-        if (deployBtn) deployBtn.remove();
-        
-        // Rimuove eventuali toolbar in basso
-        const toolbar = window.parent.document.querySelector('footer');
-        if (toolbar) toolbar.style.display = 'none';
+    const cleanUI = () => {
+        // Cerca e rimuove il badge di Streamlit Cloud e il tasto Deploy
+        const elementsToRemove = [
+            ".viewerBadge_container__1QSob", 
+            ".stDeployButton", 
+            "footer", 
+            "#MainMenu"
+        ];
+        elementsToRemove.forEach(selector => {
+            const el = window.parent.document.querySelector(selector);
+            if (el) el.remove();
+        });
     };
-    
-    // Esegui subito e poi ogni secondo per sicurezza
-    removeElements();
-    setInterval(removeElements, 1000);
+    // Esecuzione ciclica per intercettare elementi caricati in ritardo
+    setInterval(cleanUI, 500);
     </script>
 """, height=0)
 
-# --- 3. CSS COMPLETO ---
+# --- 3. CSS PER ARMONIA E PULIZIA ---
 st.markdown("""
     <style>
-        /* Nasconde tutto ciò che è superfluo */
-        header, footer, #MainMenu, .stDeployButton, .viewerBadge_container__1QSob {
-            display: none !important;
-            visibility: hidden !important;
-        }
+        /* Nasconde elementi di sistema */
+        header, footer, .stDeployButton { visibility: hidden !important; height: 0; }
         
-        /* Layout ottimizzato per mobile */
+        /* Sfondo e Layout */
         .stApp {
             background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
         }
-
         .block-container {
-            padding-top: 0.5rem !important;
-            padding-bottom: 3rem !important;
+            padding-top: 1rem !important;
+            padding-bottom: 2rem !important;
         }
 
+        /* Titoli stilizzati */
         .main-title {
-            font-size: 2.2rem;
+            font-size: 2.8rem;
             font-weight: 800;
             text-align: center;
             background: -webkit-linear-gradient(#6C5CE7, #a29bfe);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            margin-bottom: 0px;
+            margin-bottom: 0.1rem;
         }
-        
         .sub-title {
             text-align: center;
             color: #636E72;
-            font-size: 0.8rem;
-            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            margin-bottom: 2rem;
         }
 
+        /* Bottoni arrotondati */
         div.stButton > button {
             border-radius: 12px;
             background-color: #6C5CE7;
             color: white;
             font-weight: 600;
-            height: 3rem;
             border: none;
+            height: 3rem;
+            width: 100%;
         }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 4. FUNZIONI DATI ---
-def carica_utenti():
+# --- 4. FUNZIONI DATI (Persistenza reale) ---
+def carica_db():
     if not os.path.exists("utenti.json"): return {}
     try:
         with open("utenti.json", "r") as f: return json.load(f)
     except: return {}
 
-def salva_utente(u, p):
-    db = carica_utenti()
-    db[u] = {"password": p, "history": []}
-    with open("utenti.json", "w") as f: json.dump(db, f)
-
-def salva_cronologia(u, history):
-    db = carica_utenti()
-    if u in db:
-        db[u]["history"] = history
-        with open("utenti.json", "w") as f: json.dump(db, f)
+def salva_db(db):
+    with open("utenti.json", "w") as f: json.dump(db, f, indent=4)
 
 # --- 5. SESSION STATE ---
 if 'autenticato' not in st.session_state:
-    st.session_state.autenticato = False
-if 'utente_attuale' not in st.session_state:
-    st.session_state.utente_attuale = None
-if 'chat_history' not in st.session_state:
-    st.session_state.chat_history = []
+    st.session_state.update({
+        'autenticato': False,
+        'utente_attuale': None,
+        'chat_history': []
+    })
 
 # --- 6. INTERFACCIA ACCESSO ---
 if not st.session_state.autenticato:
     st.write("##")
-    col_l, col_c, col_r = st.columns([0.05, 0.9, 0.05])
+    col_l, col_c, col_r = st.columns([0.1, 0.8, 0.1])
     with col_c:
         st.markdown("<h1 class='main-title'>🧠 My Contextual Brain</h1>", unsafe_allow_html=True)
-        st.markdown("<p class='sub-title'>Estensione della tua memoria</p>", unsafe_allow_html=True)
+        st.markdown("<p class='sub-title'>Il tuo archivio cognitivo digitale</p>", unsafe_allow_html=True)
         
         t1, t2 = st.tabs(["🔐 Login", "📝 Registrazione"])
         
         with t1:
-            u = st.text_input("Username", key="login_u")
-            p = st.text_input("Password", type="password", key="login_p")
-            if st.button("ACCEDI", use_container_width=True):
-                db = carica_utenti()
-                if u in db and (isinstance(db[u], dict) and db[u].get("password") == p):
+            u = st.text_input("Username", key="l_u")
+            p = st.text_input("Password", type="password", key="l_p")
+            if st.button("ACCEDI"):
+                db = carica_db()
+                if u in db and db[u].get("pass") == p:
                     st.session_state.autenticato = True
                     st.session_state.utente_attuale = u
                     st.session_state.chat_history = db[u].get("history", [])
                     st.rerun()
                 else:
-                    st.error("Credenziali errate")
+                    st.error("Credenziali non valide")
         
         with t2:
-            nuovo_u = st.text_input("Scegli Username", key="reg_u")
-            nuovo_p = st.text_input("Scegli Password", type="password", key="reg_p")
-            if st.button("CREA ACCOUNT", use_container_width=True):
+            nuovo_u = st.text_input("Scegli Username", key="r_u")
+            nuovo_p = st.text_input("Scegli Password", type="password", key="r_p")
+            if st.button("CREA ACCOUNT"):
                 if nuovo_u and nuovo_p:
-                    salva_utente(nuovo_u, nuovo_p)
-                    st.success("Fatto! Ora accedi.")
+                    db = carica_db()
+                    db[nuovo_u] = {"pass": nuovo_p, "history": []}
+                    salva_db(db)
+                    st.success("Account creato! Effettua il login.")
 
 else:
     # --- 7. SIDEBAR ---
     with st.sidebar:
-        st.write(f"👤 **{st.session_state.utente_attuale}**")
-        scelta = st.radio("Menu", ["💬 Chat", "🧠 Memoria", "⚙️ Impostazioni"])
-        if st.button("Logout"):
+        st.markdown(f"### 👤 {st.session_state.utente_attuale}")
+        scelta = st.radio("Navigazione", ["💬 Chat", "🧠 Memoria", "⚙️ Impostazioni"])
+        if st.button("Esci"):
             st.session_state.autenticato = False
             st.rerun()
 
-    # --- 8. CHAT ---
+    # --- 8. CHAT CON SALVATAGGIO ---
     if scelta == "💬 Chat":
         for msg in st.session_state.chat_history:
             st.chat_message(msg["role"]).write(msg["content"])
 
-        if prompt := st.chat_input("Scrivi..."):
+        if prompt := st.chat_input("Di cosa vogliamo parlare?"):
             st.session_state.chat_history.append({"role": "user", "content": prompt})
             st.chat_message("user").write(prompt)
 
@@ -162,22 +151,29 @@ else:
                 risposta = cervello.elabora_concetto(st.session_state.utente_attuale, prompt)
                 st.chat_message("assistant").write(risposta)
                 st.session_state.chat_history.append({"role": "assistant", "content": risposta})
-                salva_cronologia(st.session_state.utente_attuale, st.session_state.chat_history)
+                
+                # Salvataggio persistente della cronologia
+                db = carica_db()
+                db[st.session_state.utente_attuale]["history"] = st.session_state.chat_history
+                salva_db(db)
             except Exception as e:
                 st.error(f"Errore: {e}")
 
     # --- 9. MEMORIA ---
     elif scelta == "🧠 Memoria":
-        st.title("🧠 Archivio Memoria")
+        st.title("🧠 Memoria Attiva")
         mem = cervello.carica_memoria(st.session_state.utente_attuale)
         if mem:
             for k, v in mem.items():
                 with st.expander(f"📌 {k}"): st.write(v)
-        else: st.info("Memoria vuota.")
+        else:
+            st.info("La tua memoria è ancora un foglio bianco.")
 
     # --- 10. IMPOSTAZIONI ---
     elif scelta == "⚙️ Impostazioni":
-        if st.button("🗑️ Svuota Chat"):
+        if st.button("🗑️ Svuota Cronologia"):
             st.session_state.chat_history = []
-            salva_cronologia(st.session_state.utente_attuale, [])
+            db = carica_db()
+            db[st.session_state.utente_attuale]["history"] = []
+            salva_db(db)
             st.rerun()
