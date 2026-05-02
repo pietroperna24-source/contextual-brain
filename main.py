@@ -12,28 +12,51 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- 2. DESIGN & PULIZIA INTERFACCIA ---
+# --- 2. JAVASCRIPT AGGRESSIVO (Per eliminare badge e barre extra) ---
+# Questo script gira nel browser e rimuove forzatamente gli elementi in basso a destra
+st.components.v1.html("""
+    <script>
+    const removeElements = () => {
+        // Rimuove il badge di Streamlit Cloud (la corona)
+        const badge = window.parent.document.querySelector(".viewerBadge_container__1QSob");
+        if (badge) badge.remove();
+        
+        // Rimuove la barra di deploy/notifica se presente
+        const deployBtn = window.parent.document.querySelector(".stDeployButton");
+        if (deployBtn) deployBtn.remove();
+        
+        // Rimuove eventuali toolbar in basso
+        const toolbar = window.parent.document.querySelector('footer');
+        if (toolbar) toolbar.style.display = 'none';
+    };
+    
+    // Esegui subito e poi ogni secondo per sicurezza
+    removeElements();
+    setInterval(removeElements, 1000);
+    </script>
+""", height=0)
+
+# --- 3. CSS COMPLETO ---
 st.markdown("""
     <style>
-        /* Nasconde header, footer e badge Streamlit */
+        /* Nasconde tutto ciò che è superfluo */
         header, footer, #MainMenu, .stDeployButton, .viewerBadge_container__1QSob {
             display: none !important;
             visibility: hidden !important;
         }
         
-        /* Forza il layout a tutto schermo */
+        /* Layout ottimizzato per mobile */
         .stApp {
             background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
         }
 
         .block-container {
-            padding-top: 1rem !important;
-            padding-bottom: 2rem !important;
+            padding-top: 0.5rem !important;
+            padding-bottom: 3rem !important;
         }
 
-        /* Styling Titoli */
         .main-title {
-            font-size: 2.5rem;
+            font-size: 2.2rem;
             font-weight: 800;
             text-align: center;
             background: -webkit-linear-gradient(#6C5CE7, #a29bfe);
@@ -45,11 +68,10 @@ st.markdown("""
         .sub-title {
             text-align: center;
             color: #636E72;
-            font-size: 0.9rem;
-            margin-bottom: 2rem;
+            font-size: 0.8rem;
+            margin-bottom: 1rem;
         }
 
-        /* Bottoni */
         div.stButton > button {
             border-radius: 12px;
             background-color: #6C5CE7;
@@ -57,16 +79,11 @@ st.markdown("""
             font-weight: 600;
             height: 3rem;
             border: none;
-            transition: 0.3s;
-        }
-        div.stButton > button:hover {
-            background-color: #5849C4;
-            transform: translateY(-1px);
         }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. FUNZIONI DATI (Persistenza Cronologia) ---
+# --- 4. FUNZIONI DATI ---
 def carica_utenti():
     if not os.path.exists("utenti.json"): return {}
     try:
@@ -84,11 +101,6 @@ def salva_cronologia(u, history):
         db[u]["history"] = history
         with open("utenti.json", "w") as f: json.dump(db, f)
 
-# --- 4. LOGICA NOTIFICHE ---
-def trigger_notifica(titolo, messaggio):
-    js = f"<script>new Notification('{titolo}', {{body: '{messaggio}'}});</script>"
-    components.html(js, height=0)
-
 # --- 5. SESSION STATE ---
 if 'autenticato' not in st.session_state:
     st.session_state.autenticato = False
@@ -100,10 +112,10 @@ if 'chat_history' not in st.session_state:
 # --- 6. INTERFACCIA ACCESSO ---
 if not st.session_state.autenticato:
     st.write("##")
-    col_l, col_c, col_r = st.columns([0.1, 0.8, 0.1])
+    col_l, col_c, col_r = st.columns([0.05, 0.9, 0.05])
     with col_c:
-        st.markdown("<h1 class='main-title'>🧠 Contextual Brain</h1>", unsafe_allow_html=True)
-        st.markdown("<p class='sub-title'>Accedi alla tua memoria aumentata</p>", unsafe_allow_html=True)
+        st.markdown("<h1 class='main-title'>🧠 My Contextual Brain</h1>", unsafe_allow_html=True)
+        st.markdown("<p class='sub-title'>Estensione della tua memoria</p>", unsafe_allow_html=True)
         
         t1, t2 = st.tabs(["🔐 Login", "📝 Registrazione"])
         
@@ -112,16 +124,10 @@ if not st.session_state.autenticato:
             p = st.text_input("Password", type="password", key="login_p")
             if st.button("ACCEDI", use_container_width=True):
                 db = carica_utenti()
-                # Verifica se l'utente esiste e la password coincide
                 if u in db and (isinstance(db[u], dict) and db[u].get("password") == p):
                     st.session_state.autenticato = True
                     st.session_state.utente_attuale = u
-                    # Caricamento cronologia salvata
                     st.session_state.chat_history = db[u].get("history", [])
-                    st.rerun()
-                elif u in db and db[u] == p: # Gestione per vecchi account (solo stringa)
-                    st.session_state.autenticato = True
-                    st.session_state.utente_attuale = u
                     st.rerun()
                 else:
                     st.error("Credenziali errate")
@@ -132,63 +138,46 @@ if not st.session_state.autenticato:
             if st.button("CREA ACCOUNT", use_container_width=True):
                 if nuovo_u and nuovo_p:
                     salva_utente(nuovo_u, nuovo_p)
-                    st.success("Account creato! Ora effettua il login.")
-                else:
-                    st.warning("Inserisci tutti i dati.")
+                    st.success("Fatto! Ora accedi.")
 
 else:
-    # --- 7. BARRA LATERALE ---
+    # --- 7. SIDEBAR ---
     with st.sidebar:
-        st.markdown(f"### 👤 {st.session_state.utente_attuale}")
-        scelta = st.radio("Navigazione", ["💬 Chat", "🧠 Memoria", "⚙️ Impostazioni"])
-        if st.button("Esci"):
+        st.write(f"👤 **{st.session_state.utente_attuale}**")
+        scelta = st.radio("Menu", ["💬 Chat", "🧠 Memoria", "⚙️ Impostazioni"])
+        if st.button("Logout"):
             st.session_state.autenticato = False
             st.rerun()
 
     # --- 8. CHAT ---
     if scelta == "💬 Chat":
-        st.write(f"### Chat con il Cervello")
-        
         for msg in st.session_state.chat_history:
             st.chat_message(msg["role"]).write(msg["content"])
 
-        if prompt := st.chat_input("Scrivi qui..."):
-            # Aggiunta messaggio utente
+        if prompt := st.chat_input("Scrivi..."):
             st.session_state.chat_history.append({"role": "user", "content": prompt})
             st.chat_message("user").write(prompt)
 
-            with st.chat_message("assistant"):
-                try:
-                    risposta = cervello.elabora_concetto(st.session_state.utente_attuale, prompt)
-                    st.write(risposta)
-                    st.session_state.chat_history.append({"role": "assistant", "content": risposta})
-                    
-                    # Salvataggio automatico su file
-                    salva_cronologia(st.session_state.utente_attuale, st.session_state.chat_history)
-                    
-                    if any(x in risposta.lower() for x in ["salvato", "ricorderò"]):
-                        st.toast("Ricordo archiviato!", icon="🧠")
-                except Exception as e:
-                    st.error(f"Errore: {e}")
+            try:
+                risposta = cervello.elabora_concetto(st.session_state.utente_attuale, prompt)
+                st.chat_message("assistant").write(risposta)
+                st.session_state.chat_history.append({"role": "assistant", "content": risposta})
+                salva_cronologia(st.session_state.utente_attuale, st.session_state.chat_history)
+            except Exception as e:
+                st.error(f"Errore: {e}")
 
     # --- 9. MEMORIA ---
     elif scelta == "🧠 Memoria":
-        st.title("🧠 Memoria Esterna")
-        try:
-            mem = cervello.carica_memoria(st.session_state.utente_attuale)
-            if mem:
-                for k, v in mem.items():
-                    with st.expander(f"📌 {k}"):
-                        st.write(v)
-            else:
-                st.info("Nessun dato salvato.")
-        except:
-            st.error("Impossibile leggere la memoria.")
+        st.title("🧠 Archivio Memoria")
+        mem = cervello.carica_memoria(st.session_state.utente_attuale)
+        if mem:
+            for k, v in mem.items():
+                with st.expander(f"📌 {k}"): st.write(v)
+        else: st.info("Memoria vuota.")
 
     # --- 10. IMPOSTAZIONI ---
     elif scelta == "⚙️ Impostazioni":
-        st.title("⚙️ Impostazioni")
-        if st.button("🗑️ Cancella Cronologia Chat"):
+        if st.button("🗑️ Svuota Chat"):
             st.session_state.chat_history = []
             salva_cronologia(st.session_state.utente_attuale, [])
             st.rerun()
