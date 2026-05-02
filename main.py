@@ -11,22 +11,26 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- 2. RIMOZIONE TOTALE BARRE E DECORAZIONI (CSS Finale) ---
+# --- 2. PULIZIA TOTALE INTERFACCIA ---
 st.markdown("""
     <style>
-        /* 1. Nasconde Header, Footer e menu */
         header {visibility: hidden; height: 0px;}
         footer {visibility: hidden; height: 0px;}
         #MainMenu {visibility: hidden;}
         .stDeployButton {display:none;}
+        [data-testid="stHeader"] {background-color: rgba(0,0,0,0);}
         
-        /* 2. Rimuove la linea colorata in cima alla pagina */
-        [data-testid="stHeader"] {
-            background-color: rgba(0,0,0,0);
+        /* Rimuove ogni margine per occupare tutto il display */
+        .block-container {
+            padding-top: 0rem;
+            padding-bottom: 0rem;
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
         }
-        .st-emotion-cache-18ni7ap {
-            display: none;
-        }
+        
+        * { -webkit-tap-highlight-color: transparent; }
+    </style>
+""", unsafe_allow_html=True)
 
         /* 3. Ottimizzazione spazi e bordi */
         .block-container {
