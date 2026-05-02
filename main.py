@@ -11,18 +11,52 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- 2. RIMOZIONE BARRA GITHUB E MENU ---
+# --- 2. RIMOZIONE TOTALE BARRE E DECORAZIONI (CSS Finale) ---
 st.markdown("""
     <style>
-        header {visibility: hidden;}
+        /* 1. Nasconde Header, Footer e menu */
+        header {visibility: hidden; height: 0px;}
+        footer {visibility: hidden; height: 0px;}
         #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
-        .block-container {
-            padding-top: 1rem;
-            padding-bottom: 0rem;
+        .stDeployButton {display:none;}
+        
+        /* 2. Rimuove la linea colorata in cima alla pagina */
+        [data-testid="stHeader"] {
+            background-color: rgba(0,0,0,0);
         }
+        .st-emotion-cache-18ni7ap {
+            display: none;
+        }
+
+        /* 3. Ottimizzazione spazi e bordi */
+        .block-container {
+            padding-top: 0rem; /* Portiamo tutto al limite superiore */
+            padding-bottom: 0rem;
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+        }
+
+        /* 4. Nasconde le icone di aiuto e i link sui titoli */
+        .st-emotion-cache-10trblm {
+            display: none;
+        }
+        
+        /* 5. Impedisce l'evidenziazione blu al tocco (tipica del browser) */
+        * {
+            -webkit-tap-highlight-color: transparent;
+            user-select: none; /* Rende l'app più simile a un'app reale */
+        }
+        
+        /* Permette la selezione solo nei campi di testo */
+        input, textarea {
+            user-select: text;
+        }
+
+        /* Bottoni grandi per il touch dell'Honor */
         .stButton>button {
-            border-radius: 20px;
+            border-radius: 15px;
+            height: 3em;
+            width: 100%;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -51,101 +85,93 @@ if 'utente_attuale' not in st.session_state:
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
 
-# --- 5. FUNZIONI DATI (AGGIUNTA: Salvataggio Cronologia) ---
+# --- 5. FUNZIONI DATI ---
 def carica_utenti():
     if not os.path.exists("utenti.json"): return {}
-    with open("utenti.json", "r") as f: return json.load(f)
+    try:
+        with open("utenti.json", "r") as f: return json.load(f)
+    except: return {}
 
 def salva_utente(u, p):
     db = carica_utenti()
     db[u] = p
     with open("utenti.json", "w") as f: json.dump(db, f)
 
-# --- 6. INTERFACCIA ACCESSO ---
+# --- 6. INTERFACCIA DI ACCESSO ---
 if not st.session_state.autenticato:
-    st.markdown("<h1 style='text-align: center;'>🧠 My Contextual Brain</h1>", unsafe_allow_html=True)
+    # Logo o Titolo centrato
+    st.markdown("<h1 style='text-align: center; margin-top: 20px;'>🧠 My Contextual Brain</h1>", unsafe_allow_html=True)
+    
     t1, t2 = st.tabs(["🔐 Login", "📝 Registrazione"])
     
     with t1:
-        u = st.text_input("Username")
-        p = st.text_input("Password", type="password")
-        if st.button("ACCEDI", use_container_width=True):
+        u = st.text_input("Username", key="l_u")
+        p = st.text_input("Password", type="password", key="l_p")
+        st.markdown("<br>", unsafe_allow_html=True) # Spazio extra
+        if st.button("ACCEDI"):
             db = carica_utenti()
             if u in db and db[u] == p:
                 st.session_state.autenticato = True
                 st.session_state.utente_attuale = u
-                # Carichiamo la cronologia salvata se esiste (Mancava!)
                 st.rerun()
             else:
                 st.error("Credenziali errate")
     
     with t2:
-        nuovo_u = st.text_input("Scegli Username")
-        nuovo_p = st.text_input("Scegli Password", type="password")
-        if st.button("CREA ACCOUNT", use_container_width=True):
+        nuovo_u = st.text_input("Scegli Username", key="r_u")
+        nuovo_p = st.text_input("Scegli Password", type="password", key="r_p")
+        if st.button("CREA ACCOUNT"):
             if nuovo_u and nuovo_p:
                 salva_utente(nuovo_u, nuovo_p)
                 st.success("Account creato!")
             else:
-                st.warning("Campi vuoti!")
+                st.warning("Riempi tutti i campi!")
 
 else:
     # --- 7. BARRA LATERALE ---
     with st.sidebar:
         st.header(f"👤 {st.session_state.utente_attuale}")
-        scelta = st.radio("Vai a:", ["💬 Chat", "🧠 Memoria", "⚙️ Impostazioni"])
-        if st.button("Esci", use_container_width=True):
-            for key in st.session_state.keys(): del st.session_state[key]
+        scelta = st.radio("Menù", ["💬 Chat", "🧠 Memoria", "⚙️ Impostazioni"])
+        st.divider()
+        if st.button("Logout"):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
             st.rerun()
 
-    # --- 8. SEZIONE CHAT (Ottimizzata) ---
+    # --- 8. SEZIONI APP ---
     if scelta == "💬 Chat":
         st.title("💬 Chat")
-        
-        # Container per i messaggi (per evitare scroll infiniti)
-        chat_container = st.container()
-        
-        with chat_container:
-            for msg in st.session_state.chat_history:
-                st.chat_message(msg["role"]).write(msg["content"])
+        for msg in st.session_state.chat_history:
+            st.chat_message(msg["role"]).write(msg["content"])
 
-        if prompt := st.chat_input("Scrivi qui..."):
+        if prompt := st.chat_input("Di' qualcosa..."):
             st.session_state.chat_history.append({"role": "user", "content": prompt})
             st.chat_message("user").write(prompt)
 
             with st.chat_message("assistant"):
                 try:
-                    # Chiamata al modulo cervello con gestione errore
                     risposta = cervello.elabora_concetto(st.session_state.utente_attuale, prompt)
                     st.markdown(risposta)
                     st.session_state.chat_history.append({"role": "assistant", "content": risposta})
                     
-                    if any(x in risposta for x in ["memorizzato", "salvato", "ricorderò"]):
-                        trigger_notifica("Cervello Aggiornato", "Ho salvato l'informazione!")
+                    if any(x in risposta.lower() for x in ["salvato", "memorizzato", "ricorderò"]):
+                        trigger_notifica("Cervello Aggiornato", "Ho salvato tutto!")
                         st.toast("Ricordo salvato!", icon="🧠")
-                except Exception as e:
-                    st.error(f"Errore di connessione al cervello: {e}")
+                except:
+                    st.error("Errore connessione.")
 
-    # --- 9. SEZIONE MEMORIA ---
     elif scelta == "🧠 Memoria":
         st.title("🧠 Memoria")
-        try:
-            mem = cervello.carica_memoria(st.session_state.utente_attuale)
-            if mem:
-                for k, v in mem.items():
-                    with st.expander(f"📌 {k}"):
-                        st.write(v)
-                        if st.button(f"Elimina {k}", key=k):
-                            # Qui andrebbe una funzione cervello.elimina_ricordo
-                            st.warning("Funzione elimina non ancora implementata")
-            else:
-                st.info("La tua memoria è vuota.")
-        except:
-            st.error("Impossibile caricare la memoria.")
+        mem = cervello.carica_memoria(st.session_state.utente_attuale)
+        if mem:
+            for k, v in mem.items():
+                with st.expander(f"📌 {k}"):
+                    st.write(v)
+        else:
+            st.info("Nessun ricordo.")
 
-    # --- 10. IMPOSTAZIONI ---
     elif scelta == "⚙️ Impostazioni":
         st.title("⚙️ Impostazioni")
         if st.button("🔔 Attiva Notifiche"):
             components.html("<script>Notification.requestPermission();</script>", height=0)
-            trigger_notifica("Test", "Funzionano!")
+            trigger_notifica("Sistema", "Notifiche attive!")
