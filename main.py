@@ -11,21 +11,31 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- 2. DESIGN & STYLING CUSTOM (ARMORMONIA HOME) ---
+# --- 2. DESIGN & STYLING CUSTOM (PULIZIA TOTALE) ---
 st.markdown("""
     <style>
-        /* Nascondi elementi standard */
-        header {visibility: hidden;}
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
-        .block-container { padding-top: 2rem; }
+        /* RIMOZIONE TOTALE HEADER E FOOTER */
+        header {visibility: hidden !important;}
+        footer {visibility: hidden !important;}
+        #MainMenu {visibility: hidden !important;}
+        
+        /* Rimuove lo spazio bianco in alto e in basso */
+        .block-container {
+            padding-top: 2rem;
+            padding-bottom: 0rem;
+        }
 
+        /* NASCONDE L'ICONA IN BASSO A DESTRA (STREAMLIT CLOUD) */
+        .viewerBadge_container__1QSob {
+            display: none !important;
+        }
+        
         /* Sfondo gradiente leggero */
         .stApp {
             background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
         }
 
-        /* Styling Titoli e Testi */
+        /* Styling Titoli */
         .main-title {
             font-size: 3rem;
             font-weight: 800;
@@ -58,11 +68,6 @@ st.markdown("""
             box-shadow: 0 5px 15px rgba(108, 92, 231, 0.3);
         }
 
-        /* Input Fields */
-        .stTextInput input {
-            border-radius: 10px;
-        }
-        
         /* Tabs Centralizzate */
         .stTabs [data-baseweb="tab-list"] {
             gap: 20px;
@@ -109,12 +114,12 @@ def salva_utente(u, p):
 
 # --- 6. INTERFACCIA ACCESSO (HOME) ---
 if not st.session_state.autenticato:
-    st.write("##") # Spacer
+    st.write("##") 
     col_l, col_c, col_r = st.columns([1, 2, 1])
     
     with col_c:
         st.markdown("<h1 class='main-title'>🧠 Contextual Brain</h1>", unsafe_allow_html=True)
-        st.markdown("<p class='sub-title'>Accedi alla tua estensione cognitiva digitale</p>", unsafe_allow_html=True)
+        st.markdown("<p class='sub-title'>La tua estensione cognitiva digitale</p>", unsafe_allow_html=True)
         
         t1, t2 = st.tabs(["🔐 Login", "📝 Registrazione"])
         
@@ -160,7 +165,6 @@ else:
     if scelta == "💬 Chat":
         st.markdown(f"### Chat con il tuo Cervello")
         
-        # Display messaggi
         for msg in st.session_state.chat_history:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
@@ -176,7 +180,6 @@ else:
                     st.markdown(risposta)
                     st.session_state.chat_history.append({"role": "assistant", "content": risposta})
                     
-                    # Logica notifica intelligente
                     if any(x in risposta.lower() for x in ["memorizzato", "salvato", "ricorderò", "appreso"]):
                         trigger_notifica("Memoria Aggiornata", "Ho acquisito una nuova informazione.")
                         st.toast("Nuovo ricordo salvato!", icon="✨")
@@ -186,32 +189,20 @@ else:
     # --- 9. SEZIONE MEMORIA ---
     elif scelta == "🧠 Memoria":
         st.title("🧠 Archivio Cognitivo")
-        st.info("Qui trovi tutto ciò che ho imparato su di te e sulle tue preferenze.")
-        
         try:
             mem = cervello.carica_memoria(st.session_state.utente_attuale)
             if mem:
                 for k, v in mem.items():
                     with st.expander(f"📌 {k}"):
                         st.write(v)
-                        if st.button(f"Dimentica {k}", key=f"del_{k}"):
-                            st.warning("Funzionalità di eliminazione in fase di test.")
             else:
-                st.write("Nessun dato memorizzato al momento.")
+                st.info("Nessun dato memorizzato.")
         except:
-            st.error("Errore nel caricamento dei dati di memoria.")
+            st.error("Errore nel caricamento della memoria.")
 
     # --- 10. IMPOSTAZIONI ---
     elif scelta == "⚙️ Impostazioni":
         st.title("⚙️ Configurazione")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("Notifiche")
-            if st.button("🔔 Testa Notifiche Browser"):
-                components.html("<script>Notification.requestPermission();</script>", height=0)
-                trigger_notifica("Test Sistema", "Le notifiche sono attive!")
-        with col2:
-            st.subheader("Dati")
-            if st.button("🗑️ Svuota Cronologia Chat"):
-                st.session_state.chat_history = []
-                st.rerun()
+        if st.button("🗑️ Svuota Cronologia Chat"):
+            st.session_state.chat_history = []
+            st.rerun()
