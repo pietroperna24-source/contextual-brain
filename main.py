@@ -7,15 +7,12 @@ from datetime import datetime, timedelta
 from typing import Optional
 import cervello
 
-# --- 0. LOGGING ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# --- 1. CONFIG ---
 st.set_page_config(page_title="Cervello Contextual PRO", page_icon="🧠", layout="wide", initial_sidebar_state="expanded")
 DEFAULT_ADMIN_PASS = st.secrets.get("default", {}).get("admin_password", "admin123_change_me")
 
-# --- 2. DB MODELS ---
 Base = declarative_base()
 
 class User(Base):
@@ -42,7 +39,6 @@ def init_db():
             db.commit()
             logger.info("Utente admin creato")
 
-# --- 3. UTILS ---
 def password_valida(password: str) -> tuple[bool, str]:
     if len(password) < 8: return False, "Minimo 8 caratteri"
     if not re.search(r"[A-Z]", password): return False, "Almeno 1 maiuscola"
@@ -53,7 +49,6 @@ def password_valida(password: str) -> tuple[bool, str]:
 def username_valido(username: str) -> bool:
     return bool(re.match(r'^[a-zA-Z0-9_]{3,20}$', username))
 
-# --- 4. SERVIZI DB ---
 def get_user(username: str) -> Optional[dict]:
     with SessionLocal() as db:
         user = db.query(User).filter_by(username=username).first()
@@ -89,7 +84,6 @@ def update_history(username: str, history: list):
         db.query(User).filter_by(username=username).update({"history": json.dumps(history)})
         db.commit()
 
-# --- 5. SESSION STATE ---
 if 'autenticato' not in st.session_state:
     st.session_state.update({
         'autenticato': False,
@@ -101,7 +95,6 @@ if 'autenticato' not in st.session_state:
 
 init_db()
 
-# --- 6. LOGIN / REGISTRAZIONE ---
 if not st.session_state.autenticato:
     col_l, col_c, col_r = st.columns([1, 2, 1])
     with col_c:
@@ -138,8 +131,6 @@ if not st.session_state.autenticato:
                 if submitted:
                     success, msg = create_user(nu, np)
                     st.success(msg) if success else st.error(msg)
-
-# --- 7. APP PRINCIPALE ---
 else:
     with st.sidebar:
         st.markdown(f"### 👋 {st.session_state.utente_attuale.upper()}")
@@ -168,13 +159,12 @@ else:
 
     page = st.session_state.pagina_attiva
 
-    # PAGINA ADMIN
     if page == "admin" and st.session_state.role == "admin":
         st.title("🛡️ Pannello Admin")
         with SessionLocal() as db:
             users = db.query(User).all()
             for u in users:
-                col1, col2, col3 = st.columns([3,2])
+                col1, col2, col3 = st.columns([3,2,2])
                 col1.write(f"**{u.username}** - {u.role}")
                 col2.write("Bannato" if u.is_banned else "Attivo")
                 if u.username!= "admin":
@@ -186,7 +176,6 @@ else:
                         db.commit()
                         st.rerun()
 
-    # PAGINA IMPOSTAZIONI
     elif page == "settings":
         st.title("⚙️ Impostazioni")
         with st.form("cambio_pw", clear_on_submit=True):
@@ -210,7 +199,6 @@ else:
                             db.commit()
                             st.success("Password aggiornata")
 
-    # PAGINA MEMORIA
     elif page == "memoria":
         st.title("📂 Archivio Memoria")
         memoria_key = f"memoria_{st.session_state.utente_attuale}"
@@ -226,16 +214,13 @@ else:
             st.session_state[memoria_key] = {}
             st.rerun()
 
-    # PAGINA CHAT
     else:
         st.title("🧠 Brain Chat")
 
-        # Mostra cronologia
         for m in st.session_state.chat_history:
             with st.chat_message(m["role"]):
                 st.write(m["content"])
 
-        # Input chat - uso form per evitare bug removeChild su mobile
         with st.form("chat_form", clear_on_submit=True):
             prompt = st.text_input("Scrivi...", key="chat_input", placeholder="Es: Ricorda che il mio colore preferito è blu")
             inviato = st.form_submit_button("Invia")
@@ -249,7 +234,6 @@ else:
                 with st.spinner("Penso..."):
                     risp = cervello.elabora_concetto(st.session_state.utente_attuale, prompt, memoria_corrente)
 
-                # Gestisci SAVE|
                 if "SAVE|" in risp:
                     parti = risp.split("|")
                     if len(parti) >= 3:
