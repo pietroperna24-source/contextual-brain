@@ -6,3 +6,4 @@ streamlit-limiter>=0.1
 pyotp>=2.9.0
 qrcode[pil]>=7.4
 alembic>=1.13
+pillow>=10.3.0
