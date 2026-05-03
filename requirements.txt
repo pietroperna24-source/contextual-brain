@@ -1,9 +1,4 @@
-streamlit>=1.35.0
-sqlalchemy>=2.0
-bcrypt>=4.1.2
-pandas>=2.2
-streamlit-limiter>=0.1
-pyotp>=2.9.0
-qrcode[pil]>=7.4
-alembic>=1.13
-pillow>=10.3.0
+streamlit
+sqlalchemy
+bcrypt
+pandas
