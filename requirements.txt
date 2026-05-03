@@ -1,4 +1,4 @@
-streamlit
-sqlalchemy
-bcrypt
-groq
+   streamlit==1.37.1
+   sqlalchemy
+   bcrypt
+   groq
