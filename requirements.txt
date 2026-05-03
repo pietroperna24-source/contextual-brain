@@ -1,3 +1,5 @@
 groq
 python-dotenv
 streamlit
+streamlit>=1.35.0
+bcrypt>=4.1.2
