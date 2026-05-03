@@ -111,18 +111,39 @@ if not st.session_state.autenticato:
                     if user and bcrypt.checkpw(p.encode(), user["password_hash"].encode()):
                         if user["is_banned"] and user["banned_until"] and user["banned_until"] > datetime.utcnow():
                             st.error(f"Account bannato fino al {user['banned_until'].strftime('%d/%m/%Y %H:%M')}")
-                        else:
-                            st.session_state.autenticato = True
-                            st.session_state.utente_attuale = u
-                            st.session_state.role = user["role"]
-                            st.session_state.chat_history = user["history"]
-                            with SessionLocal() as db:
-                                db.query(User).filter_by(id=user["id"]).update({"last_login": datetime.utcnow()})
-                                db.commit()
-                            st.rerun()
-                    else:
-                        st.error("Credenziali errate")
+                           else:
+        st.title("🧠 Brain Chat")
 
+        for m in st.session_state.chat_history:
+            with st.chat_message(m["role"]):
+                st.write(m["content"])
+
+        # Usa st.chat_input invece di st.form per evitare il bug removeChild
+        if prompt := st.chat_input("Scrivi...", key="chat_input_box"):
+            st.session_state.chat_history.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.write(prompt)
+
+            memoria_key = f"memoria_{st.session_state.utente_attuale}"
+            memoria_corrente = st.session_state.get(memoria_key, {})
+
+            with st.spinner("Penso..."):
+                risp = cervello.elabora_concetto(st.session_state.utente_attuale, prompt, memoria_corrente)
+
+            if "SAVE|" in risp:
+                parti = risp.split("|")
+                if len(parti) >= 3:
+                    chiave = parti[1].strip()
+                    valore = parti[2].strip()
+                    memoria_corrente[chiave] = valore
+                    st.session_state[memoria_key] = memoria_corrente
+                    risp = f"Ho memorizzato: **{chiave}** = {valore}"
+
+            with st.chat_message("assistant"):
+                st.write(risp)
+
+            st.session_state.chat_history.append({"role": "assistant", "content": risp})
+            update_history(st.session_state.utente_attuale, st.session_state.chat_history)
         with t_reg:
             with st.form("register", clear_on_submit=True):
                 nu = st.text_input("Nuovo Username")
