@@ -1,41 +1,49 @@
 import json
-import streamlit as st
-from groq import Groq
+import os
 
-try:
-    api_key = st.secrets["groq"]["api_key"]
-    client = Groq(api_key=api_key)
-    GROQ_ATTIVO = True
-except Exception:
-    client = None
-    GROQ_ATTIVO = False
+# Cartella dove verranno salvati i ricordi degli utenti
+MEMORIA_FOLDER = "memoria_utenti"
+if not os.path.exists(MEMORIA_FOLDER):
+    os.makedirs(MEMORIA_FOLDER)
 
-def elabora_concetto(username, testo_utente, memoria_dict=None):
-    if not GROQ_ATTIVO:
-        return "Errore: GROQ_API_KEY non configurata. Vai su Settings → Secrets e aggiungi [groq] api_key = 'gsk_...'"
+def carica_memoria(utente):
+    """Carica il dizionario dei ricordi dal file JSON dell'utente."""
+    file_path = os.path.join(MEMORIA_FOLDER, f"{utente}_brain.json")
+    if not os.path.exists(file_path):
+        return {}
+    with open(file_path, "r", encoding="utf-8") as f:
+        return json.load(f)
 
-    memoria = memoria_dict or {}
+def salva_memoria(utente, dati):
+    """Salva i ricordi su disco."""
+    file_path = os.path.join(MEMORIA_FOLDER, f"{utente}_brain.json")
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(dati, f, indent=4, ensure_color=False)
 
-    system_prompt = f"""
-    Sei un assistente personale per l'utente {username}.
-    Hai accesso a questa memoria: {json.dumps(memoria, ensure_ascii=False)}
-
-    ISTRUZIONI:
-    1. Se l'utente ti dà un'informazione da ricordare, rispondi con: SAVE|chiave|valore
-    2. Altrimenti rispondi normalmente consultando la memoria se necessario.
-    3. Sii sintetico e amichevole. Rispondi in italiano.
+def elabora_concetto(utente, messaggio):
     """
+    Logica principale: analizza il messaggio e decide se rispondere 
+    o memorizzare qualcosa.
+    """
+    memoria = carica_memoria(utente)
+    msg_lower = messaggio.lower()
 
-    try:
-        completion = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": testo_utente}
-            ],
-            temperature=0.6,
-            max_tokens=800
-        )
-        return completion.choices[0].message.content
-    except Exception as e:
-        return f"Errore Groq: {str(e)}"
+    # Esempio di logica di apprendimento semplice
+    # Se l'utente dice: "Ricorda che la mia chiave è 1234"
+    if "ricorda che" in msg_lower or "memorizza" in msg_lower:
+        parti = messaggio.split(" che " if " che " in messaggio else "memorizza ")
+        if len(parti) > 1:
+            concetto = parti[1].strip()
+            # Chiave fittizia basata sulla prima parola del concetto
+            chiave = concetto.split()[0].capitalize()
+            memoria[chiave] = concetto
+            salva_memoria(utente, memoria)
+            return f"Ho memorizzato nei tuoi circuiti: '{concetto}'"
+    
+    # Esempio di recupero memoria
+    for chiave in memoria:
+        if chiave.lower() in msg_lower:
+            return f"A proposito di {chiave}, ricordo che: {memoria[chiave]}"
+
+    # Risposta generica se non ci sono comandi di memoria
+    return "Ricevuto. Sto elaborando questa informazione nel tuo contesto attuale."
