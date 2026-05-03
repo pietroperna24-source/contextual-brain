@@ -1,4 +1,6 @@
-   streamlit==1.37.1
-   sqlalchemy
-   bcrypt
-   groq
+streamlit==1.37.1
+SpeechRecognition
+PyAudio
+sqlalchemy
+bcrypt
+groq
