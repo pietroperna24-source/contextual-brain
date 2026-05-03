@@ -4,23 +4,31 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.exc import IntegrityError
 import bcrypt, json, re, logging
 from datetime import datetime, timedelta
+from typing import Optional
+import cervello
 
-logging.basicConfig(level=logging.INFO)
+# --- 0. LOGGING ---
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-st.set_page_config(page_title="Cervello Contextual PRO", page_icon="🧠", layout="wide")
-
+# --- 1. CONFIG ---
+st.set_page_config(page_title="Cervello Contextual PRO", page_icon="🧠", layout="wide", initial_sidebar_state="expanded")
 DEFAULT_ADMIN_PASS = st.secrets.get("default", {}).get("admin_password", "admin123_change_me")
 
+# --- 2. DB MODELS ---
 Base = declarative_base()
 
 class User(Base):
     __tablename__ = "users"
     id = sa.Column(sa.Integer, primary_key=True)
-    username = sa.Column(sa.String(20), unique=True, nullable=False)
+    username = sa.Column(sa.String(20), unique=True, nullable=False, index=True)
     password_hash = sa.Column(sa.String(128), nullable=False)
     role = sa.Column(sa.String(10), default="user")
     history = sa.Column(sa.Text, default="[]")
+    is_banned = sa.Column(sa.Boolean, default=False)
+    banned_until = sa.Column(sa.DateTime, nullable=True)
     created_at = sa.Column(sa.DateTime, default=datetime.utcnow)
+    last_login = sa.Column(sa.DateTime, nullable=True)
 
 engine = sa.create_engine("sqlite:///app.db", connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(bind=engine)
@@ -32,25 +40,46 @@ def init_db():
             admin_hash = bcrypt.hashpw(DEFAULT_ADMIN_PASS.encode(), bcrypt.gensalt()).decode()
             db.add(User(username="admin", password_hash=admin_hash, role="admin"))
             db.commit()
+            logger.info("Utente admin creato")
 
-def get_user(username: str):
+# --- 3. UTILS ---
+def password_valida(password: str) -> tuple[bool, str]:
+    if len(password) < 8: return False, "Minimo 8 caratteri"
+    if not re.search(r"[A-Z]", password): return False, "Almeno 1 maiuscola"
+    if not re.search(r"[a-z]", password): return False, "Almeno 1 minuscola"
+    if not re.search(r"[0-9]", password): return False, "Almeno 1 numero"
+    return True, "OK"
+
+def username_valido(username: str) -> bool:
+    return bool(re.match(r'^[a-zA-Z0-9_]{3,20}$', username))
+
+# --- 4. SERVIZI DB ---
+def get_user(username: str) -> Optional[dict]:
     with SessionLocal() as db:
         user = db.query(User).filter_by(username=username).first()
         if user:
             return {
-                "id": user.id, "username": user.username, "password_hash": user.password_hash,
-                "role": user.role, "history": json.loads(user.history)
+                "id": user.id,
+                "username": user.username,
+                "password_hash": user.password_hash,
+                "role": user.role,
+                "history": json.loads(user.history) if user.history else [],
+                "is_banned": user.is_banned,
+                "banned_until": user.banned_until
             }
     return None
 
-def create_user(username: str, password: str):
-    if len(password) < 8: return False, "Password minimo 8 caratteri"
-    if not re.match(r'^[a-zA-Z0-9_]{3,20}$', username): return False, "Username non valido"
+def create_user(username: str, password: str) -> tuple[bool, str]:
+    valid, msg = password_valida(password)
+    if not valid: return False, msg
+    if not username_valido(username): return False, "Username non valido: 3-20 caratteri, solo lettere/numeri/_"
+
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
     with SessionLocal() as db:
         try:
             db.add(User(username=username, password_hash=password_hash))
             db.commit()
+            logger.info(f"Nuovo utente: {username}")
             return True, "Account creato"
         except IntegrityError:
             return False, "Username già esistente"
@@ -60,71 +89,108 @@ def update_history(username: str, history: list):
         db.query(User).filter_by(username=username).update({"history": json.dumps(history)})
         db.commit()
 
-try:
-    import cervello
-except ImportError:
-    class CervelloMock:
-        def elabora_concetto(self, user, prompt): return f"Mock: '{prompt}'"
-        def carica_memoria(self, user): return {"mem_1": "Dato esempio"}
-    cervello = CervelloMock()
-
+# --- 5. SESSION STATE ---
 if 'autenticato' not in st.session_state:
-    st.session_state.autenticato = False
-    st.session_state.utente_attuale = None
-    st.session_state.role = 'user'
-    st.session_state.chat_history = []
-    st.session_state.pagina_attiva = 'chat'
+    st.session_state.update({
+        'autenticato': False,
+        'utente_attuale': None,
+        'role': 'user',
+        'chat_history': [],
+        'pagina_attiva': 'chat'
+    })
 
 init_db()
 
+# --- 6. LOGIN / REGISTRAZIONE ---
 if not st.session_state.autenticato:
-    st.title("🧠 Contextual Brain")
-    t_log, t_reg = st.tabs(["Login", "Registrati"])
+    col_l, col_c, col_r = st.columns([1, 2, 1])
+    with col_c:
+        st.markdown("<h1 style='text-align:center'>🧠 Contextual Brain</h1>", unsafe_allow_html=True)
+        t_log, t_reg = st.tabs(["🔐 Login", "📝 Registrati"])
 
-    with t_log:
-        with st.form("login"):
-            u = st.text_input("Username")
-            p = st.text_input("Password", type="password")
-            if st.form_submit_button("ACCEDI"):
-                user = get_user(u)
-                if user and bcrypt.checkpw(p.encode(), user["password_hash"].encode()):
-                    st.session_state.autenticato = True
-                    st.session_state.utente_attuale = u
-                    st.session_state.role = user["role"]
-                    st.session_state.chat_history = user["history"]
-                    st.rerun()
-                else:
-                    st.error("Credenziali errate")
+        with t_log:
+            with st.form("login", clear_on_submit=True):
+                u = st.text_input("Username")
+                p = st.text_input("Password", type="password")
+                submitted = st.form_submit_button("ACCEDI", use_container_width=True)
+                if submitted:
+                    user = get_user(u)
+                    if user and bcrypt.checkpw(p.encode(), user["password_hash"].encode()):
+                        if user["is_banned"] and user["banned_until"] and user["banned_until"] > datetime.utcnow():
+                            st.error(f"Account bannato fino al {user['banned_until'].strftime('%d/%m/%Y %H:%M')}")
+                        else:
+                            st.session_state.autenticato = True
+                            st.session_state.utente_attuale = u
+                            st.session_state.role = user["role"]
+                            st.session_state.chat_history = user["history"]
+                            with SessionLocal() as db:
+                                db.query(User).filter_by(id=user["id"]).update({"last_login": datetime.utcnow()})
+                                db.commit()
+                            st.rerun()
+                    else:
+                        st.error("Credenziali errate")
 
-    with t_reg:
-        with st.form("register"):
-            nu = st.text_input("Nuovo Username")
-            np = st.text_input("Nuova Password", type="password")
-            if st.form_submit_button("CREA ACCOUNT"):
-                success, msg = create_user(nu, np)
-                st.success(msg) if success else st.error(msg)
+        with t_reg:
+            with st.form("register", clear_on_submit=True):
+                nu = st.text_input("Nuovo Username")
+                np = st.text_input("Nuova Password", type="password", help="8+ char, 1 maiusc, 1 min, 1 numero")
+                submitted = st.form_submit_button("CREA ACCOUNT", use_container_width=True)
+                if submitted:
+                    success, msg = create_user(nu, np)
+                    st.success(msg) if success else st.error(msg)
 
+# --- 7. APP PRINCIPALE ---
 else:
     with st.sidebar:
-        st.write(f"### 👋 {st.session_state.utente_attuale.upper()}")
-        pagina = st.radio("Menu", ["Chat", "Memoria", "Impostazioni"])
+        st.markdown(f"### 👋 {st.session_state.utente_attuale.upper()}")
+        st.caption(f"Ruolo: {st.session_state.role}")
+        st.divider()
+
+        if st.button("💬 Chat", use_container_width=True, key="nav_chat"):
+            st.session_state.pagina_attiva = "chat"
+            st.rerun()
+        if st.button("🧠 Memoria", use_container_width=True, key="nav_memoria"):
+            st.session_state.pagina_attiva = "memoria"
+            st.rerun()
+        if st.button("⚙️ Impostazioni", use_container_width=True, key="nav_settings"):
+            st.session_state.pagina_attiva = "settings"
+            st.rerun()
         if st.session_state.role == "admin":
-            if st.button("Admin"): pagina = "Admin"
-        if st.button("Esci"):
+            if st.button("🛡️ Admin", use_container_width=True, key="nav_admin"):
+                st.session_state.pagina_attiva = "admin"
+                st.rerun()
+
+        st.divider()
+        if st.button("🚪 Esci", type="primary", use_container_width=True):
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
             st.rerun()
 
-    if pagina == "Admin" and st.session_state.role == "admin":
-        st.title("Pannello Admin")
+    page = st.session_state.pagina_attiva
+
+    # PAGINA ADMIN
+    if page == "admin" and st.session_state.role == "admin":
+        st.title("🛡️ Pannello Admin")
         with SessionLocal() as db:
             users = db.query(User).all()
             for u in users:
-                st.write(f"{u.username} - {u.role}")
+                col1, col2, col3 = st.columns([3,2])
+                col1.write(f"**{u.username}** - {u.role}")
+                col2.write("Bannato" if u.is_banned else "Attivo")
+                if u.username!= "admin":
+                    if col3.button("Banna 7gg", key=f"ban_{u.id}"):
+                        db.query(User).filter_by(id=u.id).update({
+                            "is_banned": True,
+                            "banned_until": datetime.utcnow() + timedelta(days=7)
+                        })
+                        db.commit()
+                        st.rerun()
 
-    elif pagina == "Impostazioni":
-        st.title("Impostazioni")
-        with st.form("cambio_pw"):
+    # PAGINA IMPOSTAZIONI
+    elif page == "settings":
+        st.title("⚙️ Impostazioni")
+        with st.form("cambio_pw", clear_on_submit=True):
+            st.subheader("🔑 Cambia Password")
             old = st.text_input("Vecchia Password", type="password")
             new1 = st.text_input("Nuova Password", type="password")
             new2 = st.text_input("Conferma Nuova", type="password")
@@ -135,31 +201,67 @@ else:
                         st.error("Password vecchia errata")
                     elif new1!= new2:
                         st.error("Le password non coincidono")
-                    elif len(new1) < 8:
-                        st.error("Minimo 8 caratteri")
                     else:
-                        u.password_hash = bcrypt.hashpw(new1.encode(), bcrypt.gensalt()).decode()
-                        db.commit()
-                        st.success("Password aggiornata")
+                        valid, msg = password_valida(new1)
+                        if not valid:
+                            st.error(msg)
+                        else:
+                            u.password_hash = bcrypt.hashpw(new1.encode(), bcrypt.gensalt()).decode()
+                            db.commit()
+                            st.success("Password aggiornata")
 
-    elif pagina == "Memoria":
-        st.title("Archivio Memoria")
-        mem = cervello.carica_memoria(st.session_state.utente_attuale)
-        for k, v in mem.items():
-            with st.expander(k): st.write(v)
+    # PAGINA MEMORIA
+    elif page == "memoria":
+        st.title("📂 Archivio Memoria")
+        memoria_corrente = st.session_state.get(f"memoria_{st.session_state.utente_attuale}", {})
+        if memoria_corrente:
+            for k, v in memoria_corrente.items():
+                with st.expander(f"📌 {k}"):
+                    st.write(v)
+        else:
+            st.info("Nessuna memoria salvata. Chiedi al cervello di ricordare qualcosa in chat.")
 
+        if st.button("Svuota Memoria"):
+            st.session_state[f"memoria_{st.session_state.utente_attuale}"] = {}
+            st.rerun()
+
+    # PAGINA CHAT
     else:
-        st.title("Brain Chat")
-        for m in st.session_state.chat_history:
-            with st.chat_message(m["role"]): st.write(m["content"])
+        st.title("🧠 Brain Chat")
 
-        # NIENTE st.chat_input. Usiamo form normale che non rompe il DOM su mobile
+        # Mostra cronologia
+        for m in st.session_state.chat_history:
+            with st.chat_message(m["role"]):
+                st.write(m["content"])
+
+        # Input chat - uso form per evitare bug removeChild su mobile
         with st.form("chat_form", clear_on_submit=True):
-            prompt = st.text_input("Scrivi...", key="chat_input")
+            prompt = st.text_input("Scrivi...", key="chat_input", placeholder="Es: Ricorda che il mio colore preferito è blu")
             inviato = st.form_submit_button("Invia")
+
             if inviato and prompt:
+                # Aggiungi messaggio utente
                 st.session_state.chat_history.append({"role": "user", "content": prompt})
-                risp = cervello.elabora_concetto(st.session_state.utente_attuale, prompt)
+
+                # Carica memoria dalla sessione
+                memoria_key = f"memoria_{st.session_state.utente_attuale}"
+                memoria_corrente = st.session_state.get(memoria_key, {})
+
+                # Chiama il cervello
+                with st.spinner("Penso..."):
+                    risp = cervello.elabora_concetto(st.session_state.utente_attuale, prompt, memoria_corrente)
+
+                # Gestisci SAVE|
+                if "SAVE|" in risp:
+                    parti = risp.split("|")
+                    if len(parti) >= 3:
+                        chiave = parti[1].strip()
+                        valore = parti[2].strip()
+                        memoria_corrente[chiave] = valore
+                        st.session_state[memoria_key] = memoria_corrente
+                        risp = f"Ho memorizzato: **{chiave}** = {valore}"
+
+                # Aggiungi risposta
                 st.session_state.chat_history.append({"role": "assistant", "content": risp})
                 update_history(st.session_state.utente_attuale, st.session_state.chat_history)
                 st.rerun()
