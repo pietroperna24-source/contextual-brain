@@ -1,12 +1,4 @@
 {
-    "admin": {
-        "pass": "admin123",
-        "history": [],
-        "role": "admin"
-    },
-    "tuo_utente": {
-        "pass": "tua_password",
-        "history": [],
-        "role": "user"
+   
     }
 }
