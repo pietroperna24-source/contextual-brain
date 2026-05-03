@@ -35,16 +35,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 3. MODULO CERVELLO MOCK ---
-# Rimuovi questo blocco quando hai il vero modulo cervello.py
 try:
     import cervello
 except ImportError:
     class CervelloMock:
         def elabora_concetto(self, user, prompt):
             return f"Mock: ho ricevuto '{prompt}' da {user}"
-
         def carica_memoria(self, user):
-            # Sanitizza il nome utente per evitare path traversal
             safe_user = re.sub(r'[^a-zA-Z0-9_]', '', user)
             return {"esempio_1": f"Memoria finta per {safe_user}", "esempio_2": "Altra memoria"}
     cervello = CervelloMock()
@@ -73,7 +70,6 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        # Crea admin di default se non esiste
         cur = con.execute("SELECT 1 FROM users WHERE username = 'admin'")
         if not cur.fetchone():
             admin_hash = bcrypt.hashpw("admin123".encode(), bcrypt.gensalt()).decode()
@@ -83,7 +79,7 @@ def init_db():
             )
         con.commit()
 
-@st.cache_data(ttl=5) # Cache 5 secondi per evitare troppe letture
+@st.cache_data(ttl=5)
 def get_user(username: str):
     with get_db() as con:
         cur = con.execute("SELECT * FROM users WHERE username =?", (username,))
@@ -100,7 +96,7 @@ def create_user(username: str, password: str) -> bool:
             (username, password_hash)
         )
         con.commit()
-    get_user.clear() # Invalida cache
+    get_user.clear()
     return True
 
 def update_history(username: str, history: list):
@@ -138,7 +134,7 @@ def change_password(username: str, old_password: str, new_password: str) -> tupl
         con.commit()
     get_user.clear()
     return True, "Password aggiornata con successo"
-    
+
 def get_all_users():
     with get_db() as con:
         cur = con.execute("SELECT username, role, history, created_at FROM users ORDER BY created_at")
@@ -281,12 +277,38 @@ else:
         if st.button("⬅️ Indietro alla Chat"):
             st.session_state.pagina_attiva = "chat"
             st.rerun()
+            
         st.title("⚙️ Impostazioni")
+        
+        # --- CAMBIO PASSWORD ---
+        st.subheader("🔑 Cambia Password")
+        with st.form("form_cambia_password"):
+            old_pw = st.text_input("Password Attuale", type="password")
+            new_pw = st.text_input("Nuova Password", type="password", help="Minimo 8 caratteri")
+            new_pw_confirm = st.text_input("Conferma Nuova Password", type="password")
+            
+            submitted = st.form_submit_button("Aggiorna Password", type="primary")
+            if submitted:
+                if new_pw != new_pw_confirm:
+                    st.error("Le nuove password non coincidono")
+                else:
+                    success, msg = change_password(st.session_state.utente_attuale, old_pw, new_pw)
+                    if success:
+                        st.success(msg)
+                        logging.info(f"Password cambiata per: {st.session_state.utente_attuale}")
+                    else:
+                        st.error(msg)
+        
+        st.divider()
+        
+        # --- SVUOTA CRONOLOGIA ---
+        st.subheader("🗑️ Gestione Dati")
         st.warning("⚠️ Attenzione: questa azione è irreversibile")
-        if st.button("🗑️ Svuota Cronologia Chat", type="primary"):
+        if st.button("Svuota Cronologia Chat", type="secondary"):
             st.session_state.chat_history = []
             update_history(st.session_state.utente_attuale, [])
             st.success("Cronologia cancellata!")
+            logging.info(f"Cronologia svuotata da: {st.session_state.utente_attuale}")
 
     # PAGINA: CHAT
     else:
