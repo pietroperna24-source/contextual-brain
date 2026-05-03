@@ -2,4 +2,8 @@ groq
 python-dotenv
 streamlit
 streamlit>=1.35.0
+sqlalchemy>=2.0
 bcrypt>=4.1.2
+pandas>=2.2
+streamlit-limiter>=0.1
+alembic>=1.13
