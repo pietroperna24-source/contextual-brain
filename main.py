@@ -213,7 +213,8 @@ else:
     # PAGINA MEMORIA
     elif page == "memoria":
         st.title("📂 Archivio Memoria")
-        memoria_corrente = st.session_state.get(f"memoria_{st.session_state.utente_attuale}", {})
+        memoria_key = f"memoria_{st.session_state.utente_attuale}"
+        memoria_corrente = st.session_state.get(memoria_key, {})
         if memoria_corrente:
             for k, v in memoria_corrente.items():
                 with st.expander(f"📌 {k}"):
@@ -222,7 +223,7 @@ else:
             st.info("Nessuna memoria salvata. Chiedi al cervello di ricordare qualcosa in chat.")
 
         if st.button("Svuota Memoria"):
-            st.session_state[f"memoria_{st.session_state.utente_attuale}"] = {}
+            st.session_state[memoria_key] = {}
             st.rerun()
 
     # PAGINA CHAT
@@ -240,14 +241,11 @@ else:
             inviato = st.form_submit_button("Invia")
 
             if inviato and prompt:
-                # Aggiungi messaggio utente
                 st.session_state.chat_history.append({"role": "user", "content": prompt})
 
-                # Carica memoria dalla sessione
                 memoria_key = f"memoria_{st.session_state.utente_attuale}"
                 memoria_corrente = st.session_state.get(memoria_key, {})
 
-                # Chiama il cervello
                 with st.spinner("Penso..."):
                     risp = cervello.elabora_concetto(st.session_state.utente_attuale, prompt, memoria_corrente)
 
@@ -261,7 +259,6 @@ else:
                         st.session_state[memoria_key] = memoria_corrente
                         risp = f"Ho memorizzato: **{chiave}** = {valore}"
 
-                # Aggiungi risposta
                 st.session_state.chat_history.append({"role": "assistant", "content": risp})
                 update_history(st.session_state.utente_attuale, st.session_state.chat_history)
                 st.rerun()
