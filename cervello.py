@@ -2,19 +2,17 @@ import json
 import streamlit as st
 from groq import Groq
 
-# Usa st.secrets invece di os.getenv per Streamlit Cloud
 try:
     api_key = st.secrets["groq"]["api_key"]
     client = Groq(api_key=api_key)
     GROQ_ATTIVO = True
-except Exception as e:
+except Exception:
     client = None
     GROQ_ATTIVO = False
-    st.warning(f"Groq non configurato: {e}")
 
 def elabora_concetto(username, testo_utente, memoria_dict=None):
     if not GROQ_ATTIVO:
-        return "Errore: GROQ_API_KEY non configurata. Vai su Settings → Secrets su Streamlit Cloud e aggiungi [groq] api_key = 'gsk_...'"
+        return "Errore: GROQ_API_KEY non configurata. Vai su Settings → Secrets e aggiungi [groq] api_key = 'gsk_...'"
 
     memoria = memoria_dict or {}
 
