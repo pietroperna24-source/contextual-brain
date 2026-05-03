@@ -118,6 +118,27 @@ def delete_user(username: str):
         con.commit()
     get_user.clear()
 
+def change_password(username: str, old_password: str, new_password: str) -> tuple[bool, str]:
+    user_data = get_user(username)
+    if not user_data:
+        return False, "Utente non trovato"
+    
+    if not bcrypt.checkpw(old_password.encode(), user_data["password_hash"].encode()):
+        return False, "Password attuale errata"
+    
+    if not password_valida(new_password):
+        return False, "La nuova password deve avere almeno 8 caratteri"
+    
+    new_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
+    with get_db() as con:
+        con.execute(
+            "UPDATE users SET password_hash =? WHERE username =?",
+            (new_hash, username)
+        )
+        con.commit()
+    get_user.clear()
+    return True, "Password aggiornata con successo"
+    
 def get_all_users():
     with get_db() as con:
         cur = con.execute("SELECT username, role, history, created_at FROM users ORDER BY created_at")
