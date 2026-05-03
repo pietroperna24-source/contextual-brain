@@ -15,10 +15,11 @@ def carica_memoria(utente):
         return json.load(f)
 
 def salva_memoria(utente, dati):
-    """Salva i ricordi su disco."""
+    """Salva i ricordi su disco in modo sicuro."""
     file_path = os.path.join(MEMORIA_FOLDER, f"{utente}_brain.json")
     with open(file_path, "w", encoding="utf-8") as f:
-        json.dump(dati, f, indent=4, ensure_color=False)
+        # Usa ensure_ascii=False per supportare correttamente le lettere accentate
+        json.dump(dati, f, indent=4, ensure_ascii=False)
 
 def elabora_concetto(utente, messaggio):
     """
