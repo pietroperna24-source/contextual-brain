@@ -1,4 +1,5 @@
-{
-   
-    }
-}
+admin_hash = bcrypt.hashpw("admin123".encode(), bcrypt.gensalt()).decode()
+con.execute(
+    "INSERT INTO users (username, password_hash, role) VALUES (?,?,?)",
+    ("admin", admin_hash, "admin")
+)
